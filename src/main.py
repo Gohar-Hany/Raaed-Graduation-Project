@@ -6,6 +6,7 @@ os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from routes import base, data, nlp, agent, admin
 from motor.motor_asyncio import AsyncIOMotorClient
 from helpers.config import get_settings
@@ -114,6 +115,20 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(base.base_router)
 app.include_router(data.data_router)

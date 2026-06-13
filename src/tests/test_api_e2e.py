@@ -18,7 +18,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 # ── Configuration ─────────────────────────────────────────────────────────
-BASE_URL = "http://localhost:5000"
+BASE_URL = "http://localhost:8000"
 PROJECT_ID = "testproject1"
 TEST_FILE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

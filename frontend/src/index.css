@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Enable class-based dark mode (toggle .dark on <html>) */
+@variant dark (&:where(.dark, .dark *));
+
 /* ═══════════════════════════════════════════════════════════
    Raaed Design System — Tailwind CSS v4 Theme
    ═══════════════════════════════════════════════════════════ */

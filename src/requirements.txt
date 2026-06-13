@@ -1,4 +1,0 @@
-# This file is kept for backward compatibility.
-# Please use the root-level requirements.txt or environment.yml instead.
-# See: ../requirements.txt or ../environment.yml
--r ../requirements.txt

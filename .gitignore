@@ -15,7 +15,6 @@ env/
 # Environment files
 .env
 src/.env
-admin_agent_platform/.env
 token.json
 **/token.json
 
@@ -46,3 +45,19 @@ models_cache/
 
 # Content (input PDFs - too large for git)
 content/
+
+# Evaluation output files
+src/evaluation/evaluation_results.json
+src/evaluation/test_dataset.json
+src/tests/test_report.json
+
+# Asset runtime data (uploaded files & local DBs)
+src/assets/files/
+src/assets/database/
+src/assets/google_token.json
+
+# Excel temp files
+~$*
+
+# Gemini
+.gemini/

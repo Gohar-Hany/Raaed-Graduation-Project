@@ -57,3 +57,11 @@ easyocr>=1.7.0
 
 # ── Vision/LLM (Ollama) ─────────────────────────────────────────────
 ollama>=0.3.0
+
+# ── Admin Agent (CrewAI & Google Sheets) ────────────────────────────
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.0.0
+crewai>=0.30.0
+litellm>=1.0.0

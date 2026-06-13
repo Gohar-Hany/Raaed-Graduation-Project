@@ -41,7 +41,7 @@ except ImportError:
 import fitz  # PyMuPDF
 
 # ─── Import from docling_pipeline (primary pipeline) ──────────────────────
-from extraction.docling_pipeline import (
+from .docling_pipeline import (
     build_pipeline_options,
     build_converter,
     process_document,
@@ -51,7 +51,7 @@ from extraction.docling_pipeline import (
 )
 
 # ─── Import from local_pdf_pipeline (fallback) ────────────────────────────
-from extraction.local_pdf_pipeline import (
+from .local_pdf_pipeline import (
     extract_text_from_image,
     _is_ocr_meaningful,
     _init_ocr,
@@ -59,7 +59,7 @@ from extraction.local_pdf_pipeline import (
 )
 
 try:
-    from extraction.local_pdf_pipeline import (
+    from .local_pdf_pipeline import (
         get_image_vision_description,
         post_process_text,
         OLLAMA_AVAILABLE,

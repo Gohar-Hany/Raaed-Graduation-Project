@@ -6,7 +6,7 @@ os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from routes import base, data, nlp, agent
+from routes import base, data, nlp, agent, admin
 from motor.motor_asyncio import AsyncIOMotorClient
 from helpers.config import get_settings
 from helpers.db_init import init_database
@@ -80,6 +80,25 @@ async def lifespan(app: FastAPI):
         default_language=settings.DEFAULT_LANG,
     )
 
+    # ── Google Sheets Client (Admin Agent) ────────────────────────────
+    from stores.google_sheets.google_sheets_provider import GoogleSheetsProvider
+    try:
+        app.google_sheets_provider = GoogleSheetsProvider(
+            spreadsheet_id=getattr(settings, 'GOOGLE_SPREADSHEET_ID', None),
+            client_id=getattr(settings, 'GOOGLE_CLIENT_ID', None),
+            client_secret=getattr(settings, 'GOOGLE_CLIENT_SECRET', None),
+        )
+        app.google_sheets_provider.connect()
+        logger.info("[Startup] Google Sheets provider initialized ✓")
+    except Exception as e:
+        logger.warning(f"[Startup] Google Sheets init skipped: {e}")
+        app.google_sheets_provider = None
+
+    app._assistant_webhook_url = getattr(
+        settings, 'ASSISTANT_WEBHOOK_URL',
+        'http://localhost:5000/api/v1/agent/webhook/task'
+    )
+
     logger.info("[Startup] All services initialized ✓")
 
     # ── App runs here ───────────────────────────────────────────────────
@@ -89,6 +108,8 @@ async def lifespan(app: FastAPI):
     logger.info("[Shutdown] Closing connections...")
     app.mongo_conn.close()
     app.vectordb_client.disconnect()
+    if hasattr(app, 'google_sheets_provider') and app.google_sheets_provider:
+        app.google_sheets_provider.disconnect()
     logger.info("[Shutdown] Done ✓")
 
 
@@ -98,4 +119,5 @@ app.include_router(base.base_router)
 app.include_router(data.data_router)
 app.include_router(nlp.nlp_router)
 app.include_router(agent.agent_router)
+app.include_router(admin.admin_router)
 

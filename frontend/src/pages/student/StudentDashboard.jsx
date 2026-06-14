@@ -17,14 +17,16 @@ export default function StudentDashboard() {
           const hasTest = list.some(p => p.project_id === 'testproject1');
           setProjectId(hasTest ? 'testproject1' : list[0].project_id);
           
-          // Fetch quizzes for ALL projects the student has access to
           let allQuizzes = [];
+          const completedTaskIds = JSON.parse(localStorage.getItem('completedQuizzes') || '[]');
+          
           for (const project of list) {
             try {
               const projectQuizzes = await getAssignedQuizzes(project.project_id);
               if (projectQuizzes && projectQuizzes.length > 0) {
-                 // Add project_id to each quiz object for routing later if needed
-                 const enrichedQuizzes = projectQuizzes.map(q => ({...q, project_id: project.project_id}));
+                 const enrichedQuizzes = projectQuizzes
+                   .filter(q => !completedTaskIds.includes(q.task_id))
+                   .map(q => ({...q, project_id: project.project_id}));
                  allQuizzes = [...allQuizzes, ...enrichedQuizzes];
               }
             } catch (err) {

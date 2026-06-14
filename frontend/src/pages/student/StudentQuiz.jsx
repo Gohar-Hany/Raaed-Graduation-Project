@@ -19,6 +19,7 @@ export default function StudentQuiz() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [answers, setAnswers] = useState([]);
+  const [activeTaskId, setActiveTaskId] = useState(null);
   const toast = useToast();
 
   const [assignedQuizzes, setAssignedQuizzes] = useState([]);
@@ -33,11 +34,15 @@ export default function StudentQuiz() {
           setProjectId(hasTest ? 'testproject1' : list[0].project_id);
           
           let allQuizzes = [];
+          const completedTaskIds = JSON.parse(localStorage.getItem('completedQuizzes') || '[]');
+          
           for (const project of list) {
             try {
               const projectQuizzes = await getAssignedQuizzes(project.project_id);
               if (projectQuizzes && projectQuizzes.length > 0) {
-                 const enrichedQuizzes = projectQuizzes.map(q => ({...q, project_id: project.project_id}));
+                 const enrichedQuizzes = projectQuizzes
+                   .filter(q => !completedTaskIds.includes(q.task_id))
+                   .map(q => ({...q, project_id: project.project_id}));
                  allQuizzes = [...allQuizzes, ...enrichedQuizzes];
               }
             } catch (err) {
@@ -56,6 +61,7 @@ export default function StudentQuiz() {
   const startAssignedQuiz = (quizItem) => {
     setQuizData(quizItem.quiz);
     setTopic(quizItem.topic);
+    setActiveTaskId(quizItem.task_id);
     setCurrentQuestion(0);
     setAnswers([]);
     setSelectedAnswer(null);
@@ -103,6 +109,14 @@ export default function StudentQuiz() {
       setSelectedAnswer(null);
       setShowExplanation(false);
     } else {
+      if (activeTaskId) {
+        const completed = JSON.parse(localStorage.getItem('completedQuizzes') || '[]');
+        if (!completed.includes(activeTaskId)) {
+          completed.push(activeTaskId);
+          localStorage.setItem('completedQuizzes', JSON.stringify(completed));
+          setAssignedQuizzes(prev => prev.filter(q => q.task_id !== activeTaskId));
+        }
+      }
       setState(STATES.RESULTS);
     }
   };
@@ -114,6 +128,7 @@ export default function StudentQuiz() {
     setAnswers([]);
     setSelectedAnswer(null);
     setShowExplanation(false);
+    setActiveTaskId(null);
     setTopic('');
   };
 

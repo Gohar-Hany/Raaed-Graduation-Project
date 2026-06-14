@@ -17,17 +17,20 @@ export default function StudentChat() {
       const guidelines = await getActiveGuidelines(projId);
       if (guidelines && guidelines.length > 0) {
         const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        let welcomeText = "أهلاً بك! يوجهنا المعلم اليوم للتركيز على المواضيع التالية:\n\nWelcome! Today, our focus is on the following topics:\n\n";
+        let welcomeText = "أهلاً بك! يوجهنا المعلم اليوم للتركيز على المواضيع التالية:\nWelcome! Today, our focus is on the following topics:\n\n";
         
         guidelines.forEach(g => {
+          // Clean up the description just in case it contains internal system prompt artifacts
+          const cleanDesc = g.description.replace(/Create a quiz|Generate a quiz|Focus on/gi, '').trim();
+          
           if (g.task_type.toLowerCase() === 'quiz') {
-            welcomeText += `- **كويز مطلوب (Assigned Quiz)**: ${g.description} (الرجاء الانتقال لصفحة الكويزات لتأديته / Please go to the Quizzes page to take it)\n`;
+            welcomeText += `• كويز مطلوب (Assigned Quiz): ${cleanDesc}\n  (الرجاء الانتقال لصفحة الكويزات لتأديته / Please go to the Quizzes page to take it)\n\n`;
           } else {
-            welcomeText += `- **تركيز (Focus Topic)**: ${g.description}\n`;
+            welcomeText += `• تركيز (Focus Topic): ${cleanDesc}\n\n`;
           }
         });
         
-        welcomeText += "\nكيف يمكنني مساعدتك اليوم؟\nHow can I help you today?";
+        welcomeText += "كيف يمكنني مساعدتك اليوم؟\nHow can I help you today?";
         
         setMessages([{
           role: 'assistant',

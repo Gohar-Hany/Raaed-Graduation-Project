@@ -30,7 +30,7 @@ class TaskRecordModel(BaseModel):
     """Pydantic schema for structured task records output by the Admin Agent."""
 
     task_type: str = Field(
-        description="Must be one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam"
+        description="Must be one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam, Guideline"
     )
     description: str = Field(description="Clear, concise explanation of the task")
     course: str = Field(
@@ -49,7 +49,6 @@ class TaskRecordModel(BaseModel):
         default="",
         description="Any extracted parameters, MCQ counts, chapters, formatting, etc.",
     )
-
 
 def _get_admin_llm():
     """Create the LLM instance for the admin agent."""
@@ -70,7 +69,6 @@ def _get_admin_llm():
         api_key=api_key,
         temperature=0.1,
     )
-
 
 def run_admin_crew(
     user_request: str,
@@ -148,7 +146,8 @@ def run_admin_crew(
     analyze_task = Task(
         description=f"""Analyze the user's natural language request: "{user_request}".
 Identify the following information:
-1. Task Type: Classify into one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam. If not clear, default to Quiz.
+1. Task Type: Classify into one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam, Guideline. 
+CRITICAL RULE: ONLY classify as 'Quiz' if the user EXPLICITLY asks for a quiz, test, or exam. If they just say "focus on X" or "tell students to study X", you MUST classify it as 'Guideline'. If not clear, default to Guideline.
 2. Course: Match the request to the most relevant existing course based on its name or the files it contains. Here is the list of courses and their materials:
 {mapping_str}
 
@@ -157,7 +156,7 @@ Reasoning Rules for matching:
 - If the topic is about machine learning, neural networks, deep learning, AI, regression, or data science, it MUST map to '1' because it contains 'ML_NO_Address.pdf' (Machine Learning).
 - Read the filenames in each course and map the request to the course containing the most relevant files.
 - Select the course ID (e.g. 'testproject1', '1', etc.) that best fits the topic. If no course fits, default to 'General' or the first available course. You MUST strictly output one of the existing course IDs: {courses_list_str}. Do not invent a new course.
-3. Description: Generate a clear, concise description of what needs to be created.
+3. Description: Generate a clear, concise description of what needs to be created or communicated. Keep it clean for user display.
 4. Priority: Determine priority (High if urgent, or if it is an Exam or Quiz; Medium for Assignments; Low for Flashcards/Study Guides/Summaries, unless specified otherwise).
 5. Notes: Extract specific parameters or formatting details (e.g. "20 MCQs, Chapter 3", "5 pages long").""",
         expected_output="A structured summary of the request details: Task Type, Course, Description, Priority, and Notes.",

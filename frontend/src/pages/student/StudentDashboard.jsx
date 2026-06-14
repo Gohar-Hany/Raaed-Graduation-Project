@@ -1,8 +1,44 @@
-import { MessageSquare, BrainCircuit, BookOpen, Sparkles, Lightbulb, FileEdit, RefreshCw } from 'lucide-react';
+import { MessageSquare, BrainCircuit, BookOpen, Sparkles, Lightbulb, FileEdit, RefreshCw, Bell, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { getProjects, getAssignedQuizzes } from '../../services/api';
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
+  const [assignedQuizzes, setAssignedQuizzes] = useState([]);
+  const [projectId, setProjectId] = useState('testproject1');
+
+  useEffect(() => {
+    const loadAllData = async () => {
+      try {
+        const list = await getProjects();
+        if (list.length > 0) {
+          // Find if testproject1 exists, otherwise just default
+          const hasTest = list.some(p => p.project_id === 'testproject1');
+          setProjectId(hasTest ? 'testproject1' : list[0].project_id);
+          
+          // Fetch quizzes for ALL projects the student has access to
+          let allQuizzes = [];
+          for (const project of list) {
+            try {
+              const projectQuizzes = await getAssignedQuizzes(project.project_id);
+              if (projectQuizzes && projectQuizzes.length > 0) {
+                 // Add project_id to each quiz object for routing later if needed
+                 const enrichedQuizzes = projectQuizzes.map(q => ({...q, project_id: project.project_id}));
+                 allQuizzes = [...allQuizzes, ...enrichedQuizzes];
+              }
+            } catch (err) {
+              console.error(`Failed to load quizzes for ${project.project_id}:`, err);
+            }
+          }
+          setAssignedQuizzes(allQuizzes);
+        }
+      } catch (err) {
+        console.error('Failed to load projects:', err);
+      }
+    };
+    loadAllData();
+  }, []);
 
   const STUDY_TIPS = [
     { icon: Lightbulb, iconColor: 'text-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-950/30', title: 'Ask Specific Questions', desc: 'The more specific your question, the better the AI can find relevant content.' },
@@ -33,6 +69,35 @@ export default function StudentDashboard() {
           </p>
         </div>
       </div>
+
+      {/* Notifications / Assigned Quizzes */}
+      {assignedQuizzes.length > 0 && (
+        <div className="bg-white dark:bg-surface-900 rounded-2xl border-2 border-accent-400 dark:border-accent-500 p-6 shadow-card animate-slide-up relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-accent-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4" />
+          <div className="relative z-10 flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">
+            <div className="flex gap-4 items-start">
+              <div className="w-12 h-12 rounded-xl bg-accent-100 dark:bg-accent-900/50 flex items-center justify-center shrink-0">
+                <Bell size={24} className="text-accent-500 animate-pulse-soft" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-surface-900 dark:text-surface-100 mb-1">
+                  You have {assignedQuizzes.length} Assigned {assignedQuizzes.length === 1 ? 'Quiz' : 'Quizzes'}
+                </h3>
+                <p className="text-sm text-surface-500 dark:text-surface-400">
+                  Your instructor has assigned quizzes for you to complete. 
+                  Check the latest topics to ensure you are up to date!
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/student/quiz')}
+              className="shrink-0 w-full md:w-auto px-6 py-3 bg-accent-500 hover:bg-accent-600 text-white rounded-xl font-semibold shadow-glow transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+              Go to Quizzes <ArrowRight size={18} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Action Cards */}
       <div className="grid md:grid-cols-2 gap-6">
@@ -106,3 +171,4 @@ export default function StudentDashboard() {
     </div>
   );
 }
+

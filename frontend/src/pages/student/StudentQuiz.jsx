@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { generateQuiz, getProjects } from '../../services/api';
+import { generateQuiz, getProjects, getAssignedQuizzes } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import {
   BrainCircuit, Loader2, CheckCircle, XCircle, ArrowRight,
@@ -21,21 +21,47 @@ export default function StudentQuiz() {
   const [answers, setAnswers] = useState([]);
   const toast = useToast();
 
+  const [assignedQuizzes, setAssignedQuizzes] = useState([]);
+
   useEffect(() => {
-    const loadProjects = async () => {
+    const loadAllData = async () => {
       try {
         const list = await getProjects();
         setProjects(list);
         if (list.length > 0) {
           const hasTest = list.some(p => p.project_id === 'testproject1');
           setProjectId(hasTest ? 'testproject1' : list[0].project_id);
+          
+          let allQuizzes = [];
+          for (const project of list) {
+            try {
+              const projectQuizzes = await getAssignedQuizzes(project.project_id);
+              if (projectQuizzes && projectQuizzes.length > 0) {
+                 const enrichedQuizzes = projectQuizzes.map(q => ({...q, project_id: project.project_id}));
+                 allQuizzes = [...allQuizzes, ...enrichedQuizzes];
+              }
+            } catch (err) {
+              console.error(`Failed to load quizzes for ${project.project_id}:`, err);
+            }
+          }
+          setAssignedQuizzes(allQuizzes);
         }
       } catch (err) {
         console.error('Failed to load projects:', err);
       }
     };
-    loadProjects();
+    loadAllData();
   }, []);
+
+  const startAssignedQuiz = (quizItem) => {
+    setQuizData(quizItem.quiz);
+    setTopic(quizItem.topic);
+    setCurrentQuestion(0);
+    setAnswers([]);
+    setSelectedAnswer(null);
+    setShowExplanation(false);
+    setState(STATES.QUIZ);
+  };
 
 
   const startQuiz = async () => {
@@ -179,6 +205,36 @@ export default function StudentQuiz() {
                 <Sparkles size={18} />
                 Generate Quiz
               </button>
+
+              {assignedQuizzes.length > 0 && (
+                <div className="mt-6 border-t border-surface-200 dark:border-surface-800 pt-6 animate-fade-in">
+                  <h3 className="text-sm font-semibold text-surface-700 dark:text-surface-300 mb-3 flex items-center gap-1.5">
+                    <BrainCircuit size={16} className="text-primary-500" />
+                    Assigned Quizzes from Instructor
+                  </h3>
+                  <div className="space-y-2.5">
+                    {assignedQuizzes.map((q, idx) => (
+                      <button
+                        key={q.task_id || idx}
+                        onClick={() => startAssignedQuiz(q)}
+                        className="w-full text-left p-3.5 rounded-xl border border-surface-200 dark:border-surface-800 hover:border-primary-500 dark:hover:border-primary-600 bg-surface-50 dark:bg-surface-800/40 hover:bg-primary-50/20 dark:hover:bg-primary-950/10 transition-all flex items-center justify-between group"
+                      >
+                        <div className="min-w-0 flex-1 pr-2">
+                          <p className="text-sm font-semibold text-surface-900 dark:text-surface-100 truncate">
+                            {q.topic}
+                          </p>
+                          <p className="text-xs text-surface-400 mt-0.5">
+                            {q.quiz?.questions?.length || 5} Questions • Priority: {q.priority || 'High'}
+                          </p>
+                        </div>
+                        <span className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold bg-primary-100 dark:bg-primary-950 text-primary-700 dark:text-primary-300 group-hover:bg-primary-600 group-hover:text-white transition-all">
+                          Take Quiz
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

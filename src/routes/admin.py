@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from routes.schemes.admin import TaskCreateRequest, TaskCreateResponse
 from agent.admin_crew import run_admin_crew
 from models.db_schemes.instructor_guideline import InstructorGuideline
 from models.InstructorGuidelineModel import InstructorGuidelineModel
+from routes.agent import generate_and_save_quiz_background
 import logging
 import re
 import datetime
@@ -85,7 +86,7 @@ async def get_guidelines(request: Request):
 
 
 @admin_router.post("/guidelines")
-async def create_or_update_guideline(request: Request, payload: dict):
+async def create_or_update_guideline(request: Request, payload: dict, background_tasks: BackgroundTasks):
     try:
         guideline_model = await InstructorGuidelineModel.create_instance(db_client=request.app.db_client)
         
@@ -110,10 +111,11 @@ async def create_or_update_guideline(request: Request, payload: dict):
         project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
         await project_model.get_project_or_create_one(project_id=project_id)
         
+        task_type = payload.get("task_type", "Quiz")
         guideline = InstructorGuideline(
             project_id=project_id,
             task_id=task_id,
-            task_type=payload.get("task_type", "Quiz"),
+            task_type=task_type,
             description=payload.get("description", ""),
             priority=payload.get("priority", "Medium"),
             status=payload.get("status", "Pending"),
@@ -123,6 +125,18 @@ async def create_or_update_guideline(request: Request, payload: dict):
         )
         
         await guideline_model.create_or_update_guideline(guideline)
+
+        # Trigger background quiz generation if task_type is Quiz
+        if task_type.lower() == "quiz":
+            topic = payload.get("notes") or payload.get("description") or "General Topic"
+            background_tasks.add_task(
+                generate_and_save_quiz_background,
+                request.app,
+                project_id,
+                task_id,
+                topic
+            )
+
         return {"status": "success", "task_id": task_id}
     except Exception as e:
         logger.error(f"Error creating/updating guideline: {e}")

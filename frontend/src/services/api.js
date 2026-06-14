@@ -120,6 +120,12 @@ export const generateQuiz = (projectId, topic, numQuestions = 5) =>
 export const clearSession = (sessionId) =>
   api.delete(`/agent/session/${sessionId}`);
 
+export const getActiveGuidelines = (projectId) =>
+  api.get(`/agent/guidelines/active/${projectId}`);
+
+export const getAssignedQuizzes = (projectId) =>
+  api.get(`/agent/quizzes/${projectId}`);
+
 // Admin services
 export const createTask = (request) =>
   api.post('/admin/task/create', { request });

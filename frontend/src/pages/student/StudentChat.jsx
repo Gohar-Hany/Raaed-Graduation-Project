@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import ChatInterface from '../../components/ChatInterface';
-import { chatWithAgent, clearSession, getProjects } from '../../services/api';
+import { chatWithAgent, clearSession, getProjects, getActiveGuidelines } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
 export default function StudentChat() {
@@ -11,6 +11,38 @@ export default function StudentChat() {
   const [projectId, setProjectId] = useState('testproject1');
   const toast = useToast();
 
+  const fetchGuidance = async (projId) => {
+    if (!projId) return;
+    try {
+      const guidelines = await getActiveGuidelines(projId);
+      if (guidelines && guidelines.length > 0) {
+        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        let welcomeText = "أهلاً بك! يوجهنا المعلم اليوم للتركيز على المواضيع التالية:\n\nWelcome! Today, our focus is on the following topics:\n\n";
+        
+        guidelines.forEach(g => {
+          if (g.task_type.toLowerCase() === 'quiz') {
+            welcomeText += `- **كويز مطلوب (Assigned Quiz)**: ${g.description} (الرجاء الانتقال لصفحة الكويزات لتأديته / Please go to the Quizzes page to take it)\n`;
+          } else {
+            welcomeText += `- **تركيز (Focus Topic)**: ${g.description}\n`;
+          }
+        });
+        
+        welcomeText += "\nكيف يمكنني مساعدتك اليوم؟\nHow can I help you today?";
+        
+        setMessages([{
+          role: 'assistant',
+          content: welcomeText,
+          timestamp
+        }]);
+      } else {
+        setMessages([]);
+      }
+    } catch (err) {
+      console.error('Failed to load active guidelines:', err);
+      setMessages([]);
+    }
+  };
+
   useEffect(() => {
     const loadProjects = async () => {
       try {
@@ -18,7 +50,9 @@ export default function StudentChat() {
         setProjects(list);
         if (list.length > 0) {
           const hasTest = list.some(p => p.project_id === 'testproject1');
-          setProjectId(hasTest ? 'testproject1' : list[0].project_id);
+          const selectedId = hasTest ? 'testproject1' : list[0].project_id;
+          setProjectId(selectedId);
+          fetchGuidance(selectedId);
         }
       } catch (err) {
         console.error('Failed to load projects:', err);
@@ -52,15 +86,15 @@ export default function StudentChat() {
     }
   };
 
-  const handleClear = async () => {
+  const handleClear = async (targetProjId) => {
     if (sessionId) {
       try {
         await clearSession(sessionId);
       } catch {}
     }
-    setMessages([]);
     setSessionId(null);
     toast.info('Chat cleared');
+    fetchGuidance(targetProjId || projectId);
   };
 
   return (
@@ -85,8 +119,9 @@ export default function StudentChat() {
             <select
               value={projectId}
               onChange={(e) => {
-                setProjectId(e.target.value);
-                handleClear();
+                const newProjId = e.target.value;
+                setProjectId(newProjId);
+                handleClear(newProjId);
               }}
               className="px-3 py-2 rounded-xl bg-white dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm text-surface-900 dark:text-surface-100 outline-none focus:ring-2 focus:ring-primary-500/30"
             >

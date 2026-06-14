@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from routes.schemes.agent import (
     ChatRequest, ChatResponse, QuizRequest, QuizResponse, 
@@ -10,8 +10,70 @@ from models.InstructorGuidelineModel import InstructorGuidelineModel
 from controllers import NLPController
 from agent import session_manager, run_agent_chat, run_agent_quiz
 import logging
+import datetime
 
 logger = logging.getLogger("uvicorn.error")
+
+async def generate_and_save_quiz_background(app, project_id: str, task_id: str, topic: str):
+    try:
+        logger.info(f"[Background Quiz] Starting quiz generation for task {task_id} on topic '{topic}'...")
+        # Get project
+        from models.ProjectModel import ProjectModel
+        project_model = await ProjectModel.create_instance(db_client=app.db_client)
+        project = await project_model.get_project_or_create_one(project_id=project_id)
+        if not project:
+            logger.error(f"[Background Quiz] Project {project_id} not found.")
+            return
+
+        # Instantiate NLPController
+        nlp_controller = NLPController(
+            vectordb_client=app.vectordb_client,
+            generation_client=app.generation_client,
+            embedding_client=app.embedding_client,
+            template_parser=app.template_parser,
+            reranker_client=getattr(app, 'reranker_client', None)
+        )
+
+        # Run the quiz crew
+        from fastapi.concurrency import run_in_threadpool
+        quiz_data = await run_in_threadpool(
+            run_agent_quiz,
+            project_id=project_id,
+            topic=topic,
+            nlp_controller=nlp_controller,
+            project=project,
+            num_questions=5
+        )
+
+        # Save to generated_quizzes collection
+        generated_quiz_doc = {
+            "task_id": task_id,
+            "project_id": project_id,
+            "topic": topic,
+            "quiz": quiz_data,
+            "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+        await app.db_client["generated_quizzes"].update_one(
+            {"task_id": task_id},
+            {"$set": generated_quiz_doc},
+            upsert=True
+        )
+        logger.info(f"[Background Quiz] Quiz successfully generated and saved for task {task_id}.")
+
+        # Update guideline status to "Completed"
+        await app.db_client["instructor_guidelines"].update_one(
+            {"task_id": task_id},
+            {"$set": {"status": "Completed"}}
+        )
+    except Exception as e:
+        logger.error(f"[Background Quiz] Error generating quiz for task {task_id}: {e}", exc_info=True)
+        # Mark guideline status to "Failed"
+        await app.db_client["instructor_guidelines"].update_one(
+            {"task_id": task_id},
+            {"$set": {"status": "Failed"}}
+        )
+
 
 agent_router = APIRouter(
     prefix="/api/v1/agent",
@@ -135,7 +197,7 @@ async def clear_session(session_id: str):
     return SessionClearResponse(status=status_msg)
 
 @agent_router.post("/webhook/task")
-async def task_webhook(request: Request, payload: TaskWebhookRequest):
+async def task_webhook(request: Request, payload: TaskWebhookRequest, background_tasks: BackgroundTasks):
     try:
         # Normalize course name to project_id (lowercase alphanumeric)
         # e.g., "Machine Learning" -> "machinelearning"
@@ -171,6 +233,17 @@ async def task_webhook(request: Request, payload: TaskWebhookRequest):
         )
         await guideline_model.create_or_update_guideline(guideline)
 
+        # If it is a Quiz, trigger background generation
+        if payload.task_type.lower() == "quiz":
+            topic = payload.notes or payload.description or "General Topic"
+            background_tasks.add_task(
+                generate_and_save_quiz_background,
+                request.app,
+                project_id,
+                payload.task_id,
+                topic
+            )
+
         logger.info(f"Webhook processed successfully for task {payload.task_id} under project {project_id}")
         return JSONResponse(
             status_code=status.HTTP_200_OK,
@@ -188,3 +261,38 @@ async def task_webhook(request: Request, payload: TaskWebhookRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={"detail": f"Failed to register task: {str(e)}"}
         )
+
+@agent_router.get("/quizzes/{project_id}")
+async def get_assigned_quizzes(request: Request, project_id: str):
+    try:
+        cursor = request.app.db_client["generated_quizzes"].find({"project_id": project_id})
+        quizzes = []
+        async for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            quizzes.append(doc)
+        return quizzes
+    except Exception as e:
+        logger.error(f"Error fetching quizzes: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@agent_router.get("/guidelines/active/{project_id}")
+async def get_active_guidelines_endpoint(request: Request, project_id: str):
+    try:
+        guideline_model = await InstructorGuidelineModel.create_instance(db_client=request.app.db_client)
+        active = await guideline_model.get_active_guidelines(project_id)
+        return [
+            {
+                "task_id": g.task_id,
+                "task_type": g.task_type,
+                "description": g.description,
+                "priority": g.priority,
+                "status": g.status,
+                "notes": g.notes,
+                "created_at": g.created_at,
+                "is_active": g.is_active
+            }
+            for g in active
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching active guidelines: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})

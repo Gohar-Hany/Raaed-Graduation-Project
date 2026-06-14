@@ -99,19 +99,35 @@ def run_admin_crew(
     os.environ["OPENAI_API_BASE"] = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
     os.environ["OPENAI_BASE_URL"] = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
 
-    # Query existing courses/projects from MongoDB to map the task
-    existing_courses = ["General"]
+    # Query projects and their uploaded assets to build a content-aware mapping
+    project_mapping_info = []
+    existing_courses = []
     try:
         from pymongo import MongoClient
         client = MongoClient(settings.MONGODB_URL)
         db = client[settings.MONGODB_DATABASE or "raad-rag"]
+        
         projects = list(db["projects"].find({}))
-        if projects:
-            existing_courses = [p.get("project_id", "General") for p in projects]
+        assets = list(db["assets"].find({}))
+        
+        for p in projects:
+            p_id = p.get("project_id")
+            if not p_id:
+                continue
+            existing_courses.append(p_id)
+            # Find assets for this project
+            p_obj_id = p.get("_id")
+            p_assets = [a.get("asset_name") for a in assets if a.get("asset_project_id") == p_obj_id]
+            assets_str = ", ".join(p_assets) if p_assets else "No uploaded files"
+            project_mapping_info.append(f"- Course ID '{p_id}': contains files [{assets_str}]")
+            
         client.close()
     except Exception as ex:
         logger.error(f"[Admin Agent] Failed to query existing courses: {ex}")
 
+    mapping_str = "\n".join(project_mapping_info)
+    if not existing_courses:
+        existing_courses = ["General"]
     courses_list_str = ", ".join(existing_courses)
 
     # Define the Admin Agent
@@ -133,7 +149,14 @@ def run_admin_crew(
         description=f"""Analyze the user's natural language request: "{user_request}".
 Identify the following information:
 1. Task Type: Classify into one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam. If not clear, default to Quiz.
-2. Course: Extract the course or subject name. You MUST map it strictly to one of these existing courses: {courses_list_str}. Default to "General" (or the first available course in the list) if not matching or specified. Do not invent a new course.
+2. Course: Match the request to the most relevant existing course based on its name or the files it contains. Here is the list of courses and their materials:
+{mapping_str}
+
+Reasoning Rules for matching:
+- If the topic is about math, algebra, statistics, calculus, or specific math concepts like "Mean" and "Median", it MUST map to 'testproject1' because it contains 'Math_Session_1.pdf'.
+- If the topic is about machine learning, neural networks, deep learning, AI, regression, or data science, it MUST map to '1' because it contains 'ML_NO_Address.pdf' (Machine Learning).
+- Read the filenames in each course and map the request to the course containing the most relevant files.
+- Select the course ID (e.g. 'testproject1', '1', etc.) that best fits the topic. If no course fits, default to 'General' or the first available course. You MUST strictly output one of the existing course IDs: {courses_list_str}. Do not invent a new course.
 3. Description: Generate a clear, concise description of what needs to be created.
 4. Priority: Determine priority (High if urgent, or if it is an Exam or Quiz; Medium for Assignments; Low for Flashcards/Study Guides/Summaries, unless specified otherwise).
 5. Notes: Extract specific parameters or formatting details (e.g. "20 MCQs, Chapter 3", "5 pages long").""",

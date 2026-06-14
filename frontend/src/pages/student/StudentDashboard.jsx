@@ -21,7 +21,7 @@ export default function StudentDashboard() {
           
           try {
              const res = await getCompletedQuizzes(user?.id);
-             completedTaskIds = res.completed_tasks || [];
+             completedTaskIds = res.completed_tasks ? res.completed_tasks.map(ct => ct.task_id) : [];
           } catch (e) {
              console.error("Failed to fetch completed quizzes", e);
           }

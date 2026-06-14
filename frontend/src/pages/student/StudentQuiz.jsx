@@ -37,10 +37,14 @@ export default function StudentQuiz() {
           
           let allQuizzes = [];
           
-          let completedTaskIds = [];
+          let completedTasksMap = {};
           try {
              const res = await getCompletedQuizzes(user?.id);
-             completedTaskIds = res.completed_tasks || [];
+             if (res.completed_tasks) {
+               res.completed_tasks.forEach(ct => {
+                 completedTasksMap[ct.task_id] = ct;
+               });
+             }
           } catch (e) {
              console.error("Failed to fetch completed quizzes", e);
           }
@@ -50,14 +54,24 @@ export default function StudentQuiz() {
               const projectQuizzes = await getAssignedQuizzes(project.project_id);
               if (projectQuizzes && projectQuizzes.length > 0) {
                  const enrichedQuizzes = projectQuizzes
-                   .filter(q => !completedTaskIds.includes(q.task_id))
-                   .map(q => ({...q, project_id: project.project_id}));
+                   .map(q => {
+                     const completedData = completedTasksMap[q.task_id];
+                     return {
+                       ...q, 
+                       project_id: project.project_id,
+                       isCompleted: !!completedData,
+                       score: completedData?.score,
+                       total: completedData?.total
+                     };
+                   });
                  allQuizzes = [...allQuizzes, ...enrichedQuizzes];
               }
             } catch (err) {
               console.error(`Failed to load quizzes for ${project.project_id}:`, err);
             }
           }
+          // Sort: Uncompleted first, then completed
+          allQuizzes.sort((a, b) => (a.isCompleted === b.isCompleted) ? 0 : a.isCompleted ? 1 : -1);
           setAssignedQuizzes(allQuizzes);
         }
       } catch (err) {
@@ -123,23 +137,29 @@ export default function StudentQuiz() {
     } else {
       if (activeTaskId) {
         // Calculate Score
-        const score = answers.filter((a, i) => a === quizData.questions[i].correct_answer).length;
-        
+        const score = answers.filter((a, i) => a.isCorrect).length;
         try {
-          await submitQuizResult({
-            student_id: user?.id,
-            task_id: activeTaskId,
-            score: score,
-            total: quizData.questions.length,
-            answers: answers.reduce((acc, curr, index) => {
-               acc[index] = curr;
-               return acc;
-            }, {})
-          });
-          setAssignedQuizzes(prev => prev.filter(q => q.task_id !== activeTaskId));
-        } catch (e) {
-          toast.error("Failed to save quiz result");
-        }
+            await submitQuizResult({
+              student_id: user?.id,
+              task_id: activeTaskId,
+              score: score,
+              total: quizData.questions.length,
+              answers: answers.reduce((acc, curr, index) => {
+                 acc[index] = curr;
+                 return acc;
+              }, {})
+            });
+            setAssignedQuizzes(prev => {
+              const updated = prev.map(q => 
+                q.task_id === activeTaskId 
+                  ? { ...q, isCompleted: true, score: score, total: quizData.questions.length }
+                  : q
+              );
+              return updated.sort((a, b) => (a.isCompleted === b.isCompleted) ? 0 : a.isCompleted ? 1 : -1);
+            });
+          } catch (e) {
+            toast.error("Failed to save quiz result");
+          }
       }
       setState(STATES.RESULTS);
     }
@@ -258,17 +278,31 @@ export default function StudentQuiz() {
                         onClick={() => startAssignedQuiz(q)}
                         className="w-full text-left p-3.5 rounded-xl border border-surface-200 dark:border-surface-800 hover:border-primary-500 dark:hover:border-primary-600 bg-surface-50 dark:bg-surface-800/40 hover:bg-primary-50/20 dark:hover:bg-primary-950/10 transition-all flex items-center justify-between group"
                       >
-                        <div className="min-w-0 flex-1 pr-2">
-                          <p className="text-sm font-semibold text-surface-900 dark:text-surface-100 truncate">
-                            {q.topic}
-                          </p>
-                          <p className="text-xs text-surface-400 mt-0.5">
-                            {q.quiz?.questions?.length || 5} Questions • Priority: {q.priority || 'High'}
-                          </p>
+                        <div className="min-w-0 flex-1 pr-2 flex items-center gap-2">
+                          {q.isCompleted && <CheckCircle size={16} className="text-green-500 shrink-0" />}
+                          <div>
+                            <p className={`text-sm font-semibold truncate ${q.isCompleted ? 'text-surface-500 dark:text-surface-400 line-through decoration-surface-300' : 'text-surface-900 dark:text-surface-100'}`}>
+                              {q.topic}
+                            </p>
+                            <p className="text-xs text-surface-400 mt-0.5">
+                              {q.quiz?.questions?.length || 5} Questions • Priority: {q.priority || 'High'}
+                            </p>
+                          </div>
                         </div>
-                        <span className="shrink-0 px-3 py-1 rounded-lg text-xs font-semibold bg-primary-100 dark:bg-primary-950 text-primary-700 dark:text-primary-300 group-hover:bg-primary-600 group-hover:text-white transition-all">
-                          Take Quiz
-                        </span>
+                        <div className="shrink-0 flex items-center gap-3">
+                          {q.isCompleted && q.score !== undefined && (
+                            <span className="text-xs font-bold text-green-600 dark:text-green-400">
+                              Score: {q.score}/{q.total}
+                            </span>
+                          )}
+                          <span className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                            q.isCompleted 
+                              ? 'bg-surface-100 dark:bg-surface-800 text-surface-500 hover:bg-surface-200' 
+                              : 'bg-primary-100 dark:bg-primary-950 text-primary-700 dark:text-primary-300 group-hover:bg-primary-600 group-hover:text-white'
+                          }`}>
+                            {q.isCompleted ? 'Review' : 'Take Quiz'}
+                          </span>
+                        </div>
                       </button>
                     ))}
                   </div>

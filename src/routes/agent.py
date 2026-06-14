@@ -305,7 +305,11 @@ async def get_completed_quizzes(request: Request, student_id: str):
         cursor = request.app.db_client["student_results"].find({"student_id": student_id})
         completed_tasks = []
         async for doc in cursor:
-            completed_tasks.append(doc["task_id"])
+            completed_tasks.append({
+                "task_id": doc.get("task_id"),
+                "score": doc.get("score"),
+                "total": doc.get("total")
+            })
         return JSONResponse(status_code=200, content={"completed_tasks": completed_tasks})
     except Exception as e:
         logger.error(f"Error fetching completed quizzes: {e}")

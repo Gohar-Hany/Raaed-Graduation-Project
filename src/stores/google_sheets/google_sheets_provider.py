@@ -36,7 +36,7 @@ class GoogleSheetsProvider:
         base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.token_path = os.path.join(base_dir, "assets", "google_token.json")
 
-    def connect(self):
+    def connect(self, run_oauth=False):
         """Authenticate and build the Google Sheets API service."""
         if not self.spreadsheet_id or not self.client_id or not self.client_secret:
             logger.warning(
@@ -47,13 +47,26 @@ class GoogleSheetsProvider:
 
         creds = None
         if os.path.exists(self.token_path):
-            creds = Credentials.from_authorized_user_file(self.token_path, SCOPES)
+            try:
+                creds = Credentials.from_authorized_user_file(self.token_path, SCOPES)
+            except Exception as e:
+                logger.warning(f"[Google Sheets] Failed to load cached token: {e}")
 
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                logger.info("[Google Sheets] Refreshing expired credentials...")
-                creds.refresh(Request())
-            else:
+                try:
+                    logger.info("[Google Sheets] Refreshing expired credentials...")
+                    creds.refresh(Request())
+                except Exception as e:
+                    logger.warning(f"[Google Sheets] Failed to refresh token: {e}")
+                    creds = None
+
+            # If still invalid and we aren't allowed to run interactive OAuth, return
+            if (not creds or not creds.valid) and not run_oauth:
+                logger.warning("[Google Sheets] No valid cached credentials found. Run OAuth on write request.")
+                return
+
+            if not creds or not creds.valid:
                 logger.info("[Google Sheets] Running OAuth flow...")
                 client_config = {
                     "installed": {
@@ -66,12 +79,19 @@ class GoogleSheetsProvider:
                     }
                 }
                 flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-                creds = flow.run_local_server(port=0)
+                try:
+                    creds = flow.run_local_server(port=0)
+                except Exception as e:
+                    logger.warning(
+                        f"[Google Sheets] Local server browser launch failed: {e}. "
+                        "Attempting to run without opening browser automatically..."
+                    )
+                    creds = flow.run_local_server(port=0, open_browser=False)
 
-            # Cache credentials
-            os.makedirs(os.path.dirname(self.token_path), exist_ok=True)
-            with open(self.token_path, "w") as token:
-                token.write(creds.to_json())
+                # Cache credentials
+                os.makedirs(os.path.dirname(self.token_path), exist_ok=True)
+                with open(self.token_path, "w") as token:
+                    token.write(creds.to_json())
 
         self.service = build("sheets", "v4", credentials=creds)
         logger.info("[Google Sheets] Connected successfully ✓")
@@ -135,7 +155,7 @@ class GoogleSheetsProvider:
                                                     "green": 0.0,
                                                     "blue": 0.0,
                                                 }
-                                            }
+                                              }
                                         }
                                     },
                                     "fields": "userEnteredFormat.textFormat.foregroundColor",
@@ -164,10 +184,15 @@ class GoogleSheetsProvider:
         Returns a status message with the generated task ID.
         """
         if not self.service:
+            logger.info("[Google Sheets] Lazily connecting to Google Sheets API before write...")
+            self.connect(run_oauth=True)
+
+        if not self.service:
             raise RuntimeError(
                 "Google Sheets provider not connected. "
                 "Check GOOGLE_SPREADSHEET_ID, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET in .env"
             )
+
 
         self._ensure_worksheet_exists("Shared Memory")
 

@@ -74,7 +74,6 @@ def _get_admin_llm():
 
 def run_admin_crew(
     user_request: str,
-    google_sheets_provider=None,
     webhook_url: str = None,
 ) -> dict:
     """
@@ -83,12 +82,10 @@ def run_admin_crew(
     Workflow:
         1. CrewAI agent analyzes the natural language request
         2. Extracts structured task parameters (type, course, priority, etc.)
-        3. Writes the task record to Google Sheets
-        4. Sends a webhook notification to the assistant agent
+        3. Sends a webhook notification to the assistant agent to save to MongoDB
 
     Args:
         user_request: Natural language task description
-        google_sheets_provider: Initialized GoogleSheetsProvider instance
         webhook_url: URL to notify the assistant agent about the new task
 
     Returns:
@@ -185,51 +182,49 @@ You MUST output it as a valid JSON object matching the requested schema:
         if task_data:
             logger.info(f"[Admin Agent] Extracted task data: {task_data}")
 
-            # Write to Google Sheets
-            if google_sheets_provider:
-                write_msg = google_sheets_provider.write_task(
-                    task_type=task_data.get("task_type", "Quiz"),
-                    description=task_data.get("description", ""),
-                    course=task_data.get("course", "General"),
-                    priority=task_data.get("priority", "High"),
-                    assigned_agent=task_data.get("assigned_agent", "TA"),
-                    status=task_data.get("status", "Pending"),
-                    notes=task_data.get("notes", ""),
-                )
-                logger.info(f"[Admin Agent] Google Sheets: {write_msg}")
+            # Generate task_id directly from MongoDB
+            logger.info("[Admin Agent] Generating task_id from MongoDB...")
+            try:
+                from pymongo import MongoClient
+                settings = get_settings()
+                client = MongoClient(settings.MONGODB_URL)
+                db = client[settings.MONGODB_DATABASE or "raad-rag"]
+                guidelines = list(db["instructor_guidelines"].find({}))
+                
+                max_num = 0
+                for g in guidelines:
+                    t_match = re.search(r"T(\d+)", g.get("task_id", ""))
+                    if t_match:
+                        num = int(t_match.group(1))
+                        if num > max_num:
+                            max_num = num
+                task_id = f"T{max_num + 1:03d}"
+                client.close()
+            except Exception as ex:
+                logger.error(f"[Admin Agent] Failed to query MongoDB for task_id: {ex}")
+                task_id = f"T{int(datetime.datetime.now().timestamp()) % 1000:03d}"
 
-            # Extract Task_ID from write result
-            id_match = re.search(r"T\d+", write_msg)
-            if id_match:
-                task_id = id_match.group(0)
+            # Send webhook to assistant agent to save in MongoDB
+            webhook_success = False
+            if task_id != "UNKNOWN":
+                try:
+                    _send_webhook(task_id, task_data, webhook_url)
+                    webhook_success = True
+                except Exception as webhook_err:
+                    logger.error(f"[Admin Agent] Webhook dispatch failed: {webhook_err}")
 
-                # Send webhook to assistant agent
-                _send_webhook(task_id, task_data, webhook_url)
-
-                return {
-                    "task_id": task_id,
-                    "status": "created",
-                    "crew_output": write_msg,
-                }
-
-    except Exception as e:
-        logger.error(f"[Admin Agent] Failed to parse/write output: {e}")
-
-    # Fallback: try to get task ID from sheet
-    if google_sheets_provider:
-        try:
-            task_id = google_sheets_provider.get_last_task_id()
             return {
                 "task_id": task_id,
-                "status": "created",
-                "crew_output": write_msg or "Fallback used",
+                "status": "created" if webhook_success else "created_with_warning",
+                "crew_output": "Task registered successfully in MongoDB",
             }
-        except Exception as e:
-            logger.error(f"[Admin Agent] Fallback task ID extraction failed: {e}")
+
+    except Exception as e:
+        logger.error(f"[Admin Agent] Error in post-processing: {e}")
 
     return {
         "task_id": "UNKNOWN",
-        "status": "created_with_extraction_warning",
+        "status": "failed",
         "crew_output": write_msg or "Failed",
     }
 

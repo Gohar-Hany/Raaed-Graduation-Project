@@ -18,6 +18,16 @@ export default function AdminDashboard() {
       setStats({
         appName: health.app_name || 'Raaed',
         version: health.app_version || '0.2',
+        services: health.services || {
+          mongodb: 'offline',
+          qdrant: 'offline',
+          openai: 'offline'
+        },
+        stats: health.stats || {
+          projects_count: 0,
+          documents_count: 0,
+          guidelines_count: 0
+        }
       });
     } catch {
       setServerStatus('offline');
@@ -62,7 +72,7 @@ export default function AdminDashboard() {
         />
         <StatsCard
           title="Projects"
-          value="—"
+          value={stats?.stats?.projects_count !== undefined ? stats.stats.projects_count : '—'}
           subtitle="Manage via Data tab"
           icon={FolderOpen}
           color="primary"
@@ -70,7 +80,7 @@ export default function AdminDashboard() {
         />
         <StatsCard
           title="Documents"
-          value="—"
+          value={stats?.stats?.documents_count !== undefined ? stats.stats.documents_count : '—'}
           subtitle="Upload new materials"
           icon={FileText}
           color="warning"
@@ -78,7 +88,7 @@ export default function AdminDashboard() {
         />
         <StatsCard
           title="Active Guidelines"
-          value="—"
+          value={stats?.stats?.guidelines_count !== undefined ? stats.stats.guidelines_count : '—'}
           subtitle="View in Guidelines tab"
           icon={BookOpen}
           color="accent"
@@ -96,11 +106,10 @@ export default function AdminDashboard() {
           </h3>
           <div className="space-y-3">
             {[
-              { label: 'RAG Pipeline', desc: 'GTE Embedding + BGE Reranker + GPT-4o-mini', status: serverStatus },
-              { label: 'Vector Database', desc: 'Qdrant (Local Persistent)', status: serverStatus },
-              { label: 'Document Store', desc: 'MongoDB Atlas', status: serverStatus },
-              { label: 'Agent Framework', desc: 'CrewAI Multi-Agent', status: serverStatus },
-              { label: 'Shared Memory', desc: 'Google Sheets Task Queue', status: 'online' },
+              { label: 'RAG Pipeline', desc: 'GTE Embedding + BGE Reranker + GPT-4o-mini', status: stats?.services?.openai || 'offline' },
+              { label: 'Vector Database', desc: 'Qdrant (Local Persistent)', status: stats?.services?.qdrant || 'offline' },
+              { label: 'Document Store', desc: 'MongoDB Atlas', status: stats?.services?.mongodb || 'offline' },
+              { label: 'Agent Framework', desc: 'CrewAI Multi-Agent', status: stats?.services?.openai || 'offline' },
             ].map((item) => (
               <div key={item.label} className="flex items-center justify-between py-2 border-b border-surface-100 dark:border-surface-800/50 last:border-0">
                 <div>
@@ -113,12 +122,13 @@ export default function AdminDashboard() {
                     : 'bg-surface-100 dark:bg-surface-800 text-surface-400'
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'online' ? 'bg-accent-500' : 'bg-surface-400'}`} />
-                  {item.status === 'online' ? 'Connected' : 'Unknown'}
+                  {item.status === 'online' ? 'Connected' : 'Offline'}
                 </span>
               </div>
             ))}
           </div>
         </div>
+
 
         {/* Quick Actions */}
         <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 p-6 shadow-card">

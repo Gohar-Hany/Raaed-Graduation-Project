@@ -179,11 +179,16 @@ def run_agent_quiz(
 Search the course materials for content related to the topic: "{topic}".
 Based on the retrieved content, generate exactly {num_questions} multiple-choice questions.
 Each question must have 4 options (A, B, C, D), a single correct answer, and an explanation.
-You MUST output a valid JSON object matching the requested schema.
+You MUST output a valid JSON object matching the schema:
+- topic: The topic of the quiz
+- questions: A list of questions, where each question has:
+  - question: The question text
+  - options: A dictionary with keys A, B, C, and D
+  - correct_answer: The key (A, B, C, or D)
+  - explanation: Explanation text
 """,
-        expected_output="A structured JSON quiz matching the schema.",
-        agent=quiz_agent,
-        output_json=QuizModel
+        expected_output="A raw JSON string matching the quiz schema.",
+        agent=quiz_agent
     )
     
     crew = Crew(
@@ -196,27 +201,24 @@ You MUST output a valid JSON object matching the requested schema.
     result = crew.kickoff()
     
     # Return parsed JSON dict
-    if result.json_dict:
-        return result.json_dict
-    elif result.pydantic:
-        return result.pydantic.model_dump()
-    else:
-        # Fallback parsing
-        try:
-            cleaned_raw = str(result.raw).strip()
-            if "```json" in cleaned_raw:
-                cleaned_raw = cleaned_raw.split("```json")[1].split("```")[0].strip()
-            return json.loads(cleaned_raw)
-        except Exception as e:
-            logger.error(f"Failed to parse quiz raw output: {e}")
-            return {
-                "topic": topic,
-                "questions": [
-                    {
-                        "question": "Failed to generate quiz questions dynamically.",
-                        "options": {"A": "N/A", "B": "N/A", "C": "N/A", "D": "N/A"},
-                        "correct_answer": "A",
-                        "explanation": str(e)
-                    }
-                ]
-            }
+    try:
+        cleaned_raw = str(result.raw).strip()
+        if "```json" in cleaned_raw:
+            cleaned_raw = cleaned_raw.split("```json")[1].split("```")[0].strip()
+        elif "```" in cleaned_raw:
+            cleaned_raw = cleaned_raw.split("```")[1].split("```")[0].strip()
+        return json.loads(cleaned_raw)
+    except Exception as e:
+        logger.error(f"Failed to parse quiz raw output: {e}. Raw was: {result.raw}")
+        return {
+            "topic": topic,
+            "questions": [
+                {
+                    "question": "Failed to generate quiz questions dynamically.",
+                    "options": {"A": "N/A", "B": "N/A", "C": "N/A", "D": "N/A"},
+                    "correct_answer": "A",
+                    "explanation": str(e)
+                }
+            ]
+        }
+

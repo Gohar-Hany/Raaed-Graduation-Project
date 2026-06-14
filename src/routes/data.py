@@ -205,3 +205,43 @@ async def process_endpoint(request: Request, project_id: str, process_request: P
             "processed_files": no_files
         }
     )
+
+@data_router.get("/projects")
+async def get_projects(request: Request):
+    try:
+        project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
+        projects, _ = await project_model.get_all_projects(page=1, page_size=1000)
+        return [
+            {
+                "_id": str(p.id),
+                "project_id": p.project_id
+            }
+            for p in projects
+        ]
+    except Exception as e:
+        logger.error(f"Error listing projects: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@data_router.get("/assets")
+async def get_assets(request: Request):
+    try:
+        cursor = request.app.db_client["assets"].find({})
+        assets = []
+        async for doc in cursor:
+            project_id_str = "Unknown"
+            project_doc = await request.app.db_client["projects"].find_one({"_id": doc.get("asset_project_id")})
+            if project_doc:
+                project_id_str = project_doc.get("project_id", "Unknown")
+            
+            assets.append({
+                "_id": str(doc.get("_id")),
+                "asset_name": doc.get("asset_name"),
+                "asset_type": doc.get("asset_type"),
+                "asset_size": doc.get("asset_size"),
+                "project": project_id_str
+            })
+        return assets
+    except Exception as e:
+        logger.error(f"Error listing assets: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+

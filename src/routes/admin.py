@@ -1,8 +1,13 @@
 from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
+from fastapi.concurrency import run_in_threadpool
 from routes.schemes.admin import TaskCreateRequest, TaskCreateResponse
 from agent.admin_crew import run_admin_crew
+from models.db_schemes.instructor_guideline import InstructorGuideline
+from models.InstructorGuidelineModel import InstructorGuidelineModel
 import logging
+import re
+import datetime
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -25,12 +30,12 @@ async def create_task(request: Request, payload: TaskCreateRequest):
     """
     logger.info(f"[Admin] Received task creation request: '{payload.request}'")
     try:
-        result = run_admin_crew(
+        result = await run_in_threadpool(
+            run_admin_crew,
             user_request=payload.request,
-            google_sheets_provider=getattr(request.app, "google_sheets_provider", None),
             webhook_url=getattr(
                 request.app, "_assistant_webhook_url",
-                "http://localhost:5000/api/v1/agent/webhook/task"
+                "http://localhost:8000/api/v1/agent/webhook/task"
             ),
         )
 
@@ -52,3 +57,105 @@ async def create_task(request: Request, payload: TaskCreateRequest):
 async def admin_health_check():
     """Returns the health status of the admin agent service."""
     return {"status": "healthy", "service": "Admin Agent"}
+
+
+@admin_router.get("/guidelines")
+async def get_guidelines(request: Request):
+    try:
+        guideline_model = await InstructorGuidelineModel.create_instance(db_client=request.app.db_client)
+        guidelines = await guideline_model.get_all_guidelines()
+        return [
+            {
+                "_id": str(g.id),
+                "project_id": g.project_id,
+                "task_id": g.task_id,
+                "task_type": g.task_type,
+                "description": g.description,
+                "priority": g.priority,
+                "status": g.status,
+                "notes": g.notes,
+                "created_at": g.created_at,
+                "is_active": g.is_active
+            }
+            for g in guidelines
+        ]
+    except Exception as e:
+        logger.error(f"Error listing guidelines: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+@admin_router.post("/guidelines")
+async def create_or_update_guideline(request: Request, payload: dict):
+    try:
+        guideline_model = await InstructorGuidelineModel.create_instance(db_client=request.app.db_client)
+        
+        task_id = payload.get("task_id")
+        if not task_id:
+            guidelines = await guideline_model.get_all_guidelines()
+            max_num = 0
+            for g in guidelines:
+                match = re.search(r"T(\d+)", g.task_id)
+                if match:
+                    num = int(match.group(1))
+                    if num > max_num:
+                        max_num = num
+            task_id = f"T{max_num + 1:03d}"
+        
+        course_name = payload.get("course") or payload.get("project_id") or "General"
+        project_id = re.sub(r'[^a-zA-Z0-9]', '', course_name.lower())
+        if not project_id:
+            project_id = "general"
+
+        from models.ProjectModel import ProjectModel
+        project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
+        await project_model.get_project_or_create_one(project_id=project_id)
+        
+        guideline = InstructorGuideline(
+            project_id=project_id,
+            task_id=task_id,
+            task_type=payload.get("task_type", "Quiz"),
+            description=payload.get("description", ""),
+            priority=payload.get("priority", "Medium"),
+            status=payload.get("status", "Pending"),
+            notes=payload.get("notes", ""),
+            created_at=payload.get("created_at") or datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            is_active=payload.get("is_active", True) if payload.get("is_active") is not None else True
+        )
+        
+        await guideline_model.create_or_update_guideline(guideline)
+        return {"status": "success", "task_id": task_id}
+    except Exception as e:
+        logger.error(f"Error creating/updating guideline: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+@admin_router.put("/guidelines/{task_id}/toggle")
+async def toggle_guideline(request: Request, task_id: str):
+    try:
+        doc = await request.app.db_client["instructor_guidelines"].find_one({"task_id": task_id})
+        if not doc:
+            return JSONResponse(status_code=404, content={"detail": "Guideline not found"})
+        
+        new_active = not doc.get("is_active", True)
+        await request.app.db_client["instructor_guidelines"].update_one(
+            {"task_id": task_id},
+            {"$set": {"is_active": new_active}}
+        )
+        return {"status": "success", "task_id": task_id, "is_active": new_active}
+    except Exception as e:
+        logger.error(f"Error toggling guideline: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+
+@admin_router.delete("/guidelines/{task_id}")
+async def delete_guideline(request: Request, task_id: str):
+    try:
+        guideline_model = await InstructorGuidelineModel.create_instance(db_client=request.app.db_client)
+        deleted = await guideline_model.delete_guideline(task_id)
+        if not deleted:
+            return JSONResponse(status_code=404, content={"detail": "Guideline not found"})
+        return {"status": "success", "task_id": task_id}
+    except Exception as e:
+        logger.error(f"Error deleting guideline: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+

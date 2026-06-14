@@ -126,3 +126,24 @@ export const createTask = (request) =>
 
 export const adminHealthCheck = () =>
   api.get('/admin/health');
+
+// Projects & Assets Services
+export const getProjects = () =>
+  api.get('/data/projects');
+
+export const getAssets = () =>
+  api.get('/data/assets');
+
+// Guidelines Services
+export const getGuidelines = () =>
+  api.get('/admin/guidelines');
+
+export const saveGuideline = (guideline) =>
+  api.post('/admin/guidelines', guideline);
+
+export const toggleGuideline = (taskId) =>
+  api.put(`/admin/guidelines/${taskId}/toggle`);
+
+export const deleteGuideline = (taskId) =>
+  api.delete(`/admin/guidelines/${taskId}`);
+

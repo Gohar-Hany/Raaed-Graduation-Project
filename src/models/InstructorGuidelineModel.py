@@ -68,3 +68,21 @@ class InstructorGuidelineModel(BaseDataModel):
             {"$set": {"is_active": False}}
         )
         return result.modified_count > 0
+
+    async def get_all_guidelines(self) -> list:
+        """
+        Returns all guidelines from the database sorted by creation time.
+        """
+        cursor = self.collection.find({}).sort("created_at", -1)
+        guidelines = []
+        async for doc in cursor:
+            guidelines.append(InstructorGuideline(**doc))
+        return guidelines
+
+    async def delete_guideline(self, task_id: str) -> bool:
+        """
+        Deletes a guideline by task_id.
+        """
+        result = await self.collection.delete_one({"task_id": task_id})
+        return result.deleted_count > 0
+

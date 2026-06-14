@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { generateQuiz } from '../../services/api';
+import { useState, useEffect } from 'react';
+import { generateQuiz, getProjects } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import {
   BrainCircuit, Loader2, CheckCircle, XCircle, ArrowRight,
@@ -12,13 +12,31 @@ export default function StudentQuiz() {
   const [state, setState] = useState(STATES.SETUP);
   const [topic, setTopic] = useState('');
   const [numQuestions, setNumQuestions] = useState(5);
-  const [projectId] = useState('testproject1');
+  const [projects, setProjects] = useState([]);
+  const [projectId, setProjectId] = useState('testproject1');
   const [quizData, setQuizData] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [answers, setAnswers] = useState([]);
   const toast = useToast();
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const list = await getProjects();
+        setProjects(list);
+        if (list.length > 0) {
+          const hasTest = list.some(p => p.project_id === 'testproject1');
+          setProjectId(hasTest ? 'testproject1' : list[0].project_id);
+        }
+      } catch (err) {
+        console.error('Failed to load projects:', err);
+      }
+    };
+    loadProjects();
+  }, []);
+
 
   const startQuiz = async () => {
     if (!topic.trim()) {
@@ -102,6 +120,23 @@ export default function StudentQuiz() {
             </h2>
 
             <div className="space-y-5">
+              {projects.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5">
+                    Course
+                  </label>
+                  <select
+                    value={projectId}
+                    onChange={(e) => setProjectId(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all text-surface-900 dark:text-surface-100"
+                  >
+                    {projects.map(p => (
+                      <option key={p.project_id} value={p.project_id}>{p.project_id}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1.5">
                   Topic

@@ -1,4 +1,5 @@
 import os
+# Hot-reloaded to apply new Google Sheets env configurations
 from dotenv import load_dotenv
 load_dotenv()
 os.environ["HF_HUB_OFFLINE"] = "0"
@@ -81,19 +82,7 @@ async def lifespan(app: FastAPI):
         default_language=settings.DEFAULT_LANG,
     )
 
-    # ── Google Sheets Client (Admin Agent) ────────────────────────────
-    from stores.google_sheets.google_sheets_provider import GoogleSheetsProvider
-    try:
-        app.google_sheets_provider = GoogleSheetsProvider(
-            spreadsheet_id=getattr(settings, 'GOOGLE_SPREADSHEET_ID', None),
-            client_id=getattr(settings, 'GOOGLE_CLIENT_ID', None),
-            client_secret=getattr(settings, 'GOOGLE_CLIENT_SECRET', None),
-        )
-        app.google_sheets_provider.connect()
-        logger.info("[Startup] Google Sheets provider initialized ✓")
-    except Exception as e:
-        logger.warning(f"[Startup] Google Sheets init skipped: {e}")
-        app.google_sheets_provider = None
+    app.google_sheets_provider = None
 
     app._assistant_webhook_url = getattr(
         settings, 'ASSISTANT_WEBHOOK_URL',

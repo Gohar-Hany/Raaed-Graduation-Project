@@ -40,10 +40,10 @@ class TaskWebhookRequest(BaseModel):
     is_active: Optional[bool] = True
 
 class QuizResultRequest(BaseModel):
-    student_id: str
+    student_id: Optional[str] = "unknown"
     task_id: str
     score: int
     total: int
-    answers: Dict[int, str]
+    answers: Dict[str, Optional[str]]
 
 

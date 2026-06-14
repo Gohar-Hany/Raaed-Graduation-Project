@@ -24,7 +24,15 @@ class ApiClient {
       const response = await fetch(url, config);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        if (errorData.detail) {
+          errorMessage = typeof errorData.detail === 'string' 
+            ? errorData.detail 
+            : JSON.stringify(errorData.detail);
+        } else if (errorData.signal) {
+          errorMessage = `Signal: ${errorData.signal}`;
+        }
+        throw new Error(errorMessage);
       }
       return await response.json();
     } catch (error) {

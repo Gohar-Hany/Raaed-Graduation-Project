@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FileUpload from '../../components/FileUpload';
-import { uploadFile, processFiles, pushToIndex } from '../../services/api';
+import { uploadFile, processFiles, pushToIndex, getProjects } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import { Cpu, Database, Loader2, CheckCircle, ArrowRight, Upload, Search, AlertCircle } from 'lucide-react';
 
@@ -12,9 +12,21 @@ const PIPELINE_STEPS = [
 
 export default function AdminUpload() {
   const [projectId, setProjectId] = useState('testproject1');
+  const [projects, setProjects] = useState([]);
   const [pipelineStatus, setPipelineStatus] = useState({});
   const [lastResult, setLastResult] = useState(null);
   const toast = useToast();
+
+  useEffect(() => {
+    getProjects()
+      .then(list => {
+        setProjects(list);
+        if (list.length > 0 && !list.find(p => p.project_id === 'testproject1')) {
+          setProjectId(list[0].project_id);
+        }
+      })
+      .catch(err => toast.error('Failed to fetch projects'));
+  }, []);
 
   const handleUpload = async (file, onProgress) => {
     return await uploadFile(projectId, file, onProgress);
@@ -52,13 +64,26 @@ export default function AdminUpload() {
         <label className="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
           Target Project
         </label>
-        <input
-          type="text"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-          className="w-full max-w-md px-4 py-2.5 rounded-xl bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 text-sm outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all text-surface-900 dark:text-surface-100"
-          placeholder="Enter project ID (e.g., testproject1)"
-        />
+        <div className="relative w-full max-w-md">
+          <select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className="w-full appearance-none px-4 py-3 rounded-xl bg-surface-50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700/50 text-sm font-medium outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 transition-all text-surface-900 dark:text-surface-100 shadow-sm hover:border-surface-300 dark:hover:border-surface-600 cursor-pointer"
+          >
+            {projects.map(p => (
+              <option key={p.project_id} value={p.project_id}>
+                {p.project_id}
+              </option>
+            ))}
+            {/* Allow testproject1 even if not in the DB yet, for default fallback */}
+            {projects.length === 0 && <option value="testproject1">testproject1</option>}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-surface-500">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
       </div>
 
       {/* File Upload */}

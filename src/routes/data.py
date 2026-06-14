@@ -245,3 +245,28 @@ async def get_assets(request: Request):
         logger.error(f"Error listing assets: {e}")
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
+@data_router.delete("/projects/{project_id}")
+async def delete_project(request: Request, project_id: str):
+    try:
+        # Delete project by project_id
+        result = await request.app.db_client["projects"].delete_one({"project_id": project_id})
+        if result.deleted_count == 0:
+            return JSONResponse(status_code=404, content={"detail": "Project not found"})
+        # Optionally delete related assets and chunks
+        return JSONResponse(status_code=200, content={"status": "success", "message": "Project deleted"})
+    except Exception as e:
+        logger.error(f"Error deleting project: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+from bson import ObjectId
+
+@data_router.delete("/assets/{asset_id}")
+async def delete_asset(request: Request, asset_id: str):
+    try:
+        result = await request.app.db_client["assets"].delete_one({"_id": ObjectId(asset_id)})
+        if result.deleted_count == 0:
+            return JSONResponse(status_code=404, content={"detail": "Asset not found"})
+        return JSONResponse(status_code=200, content={"status": "success", "message": "Asset deleted"})
+    except Exception as e:
+        logger.error(f"Error deleting asset: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})

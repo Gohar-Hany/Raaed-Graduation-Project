@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
-import { getProjects, getAssets, getGuidelines, saveGuideline, deleteGuideline } from '../../services/api';
+import { getProjects, getAssets, getGuidelines, saveGuideline, deleteGuideline, deleteProject, deleteAsset } from '../../services/api';
 import { Loader2 } from 'lucide-react';
 
 const TABS = [
@@ -96,17 +96,27 @@ export default function AdminData() {
   };
 
   const handleDelete = async (row) => {
-    if (activeTab !== 'guidelines') {
-      toast.error('Deleting projects or assets is managed via the file upload or backend.');
-      return;
-    }
     if (!confirm('Are you sure you want to delete this record?')) return;
     try {
-      await deleteGuideline(row.task_id);
-      setData(prev => ({
-        ...prev,
-        guidelines: prev.guidelines.filter(r => r.task_id !== row.task_id)
-      }));
+      if (activeTab === 'guidelines') {
+        await deleteGuideline(row.task_id);
+        setData(prev => ({
+          ...prev,
+          guidelines: prev.guidelines.filter(r => r.task_id !== row.task_id)
+        }));
+      } else if (activeTab === 'projects') {
+        await deleteProject(row.project_id);
+        setData(prev => ({
+          ...prev,
+          projects: prev.projects.filter(r => r.project_id !== row.project_id)
+        }));
+      } else if (activeTab === 'assets') {
+        await deleteAsset(row._id);
+        setData(prev => ({
+          ...prev,
+          assets: prev.assets.filter(r => r._id !== row._id)
+        }));
+      }
       toast.success('Record deleted');
     } catch (err) {
       toast.error(`Delete failed: ${err.message}`);

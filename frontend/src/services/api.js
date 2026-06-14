@@ -143,8 +143,14 @@ export const adminHealthCheck = () =>
 export const getProjects = () =>
   api.get('/data/projects');
 
+export const deleteProject = (projectId) =>
+  api.delete(`/data/projects/${projectId}`);
+
 export const getAssets = () =>
   api.get('/data/assets');
+
+export const deleteAsset = (assetId) =>
+  api.delete(`/data/assets/${assetId}`);
 
 // Guidelines Services
 export const getGuidelines = () =>

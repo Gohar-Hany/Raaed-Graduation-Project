@@ -103,6 +103,14 @@ export default function ChatInterface({
               }`}
             >
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              {msg.action && (
+                <button
+                  onClick={msg.action.onClick}
+                  className="mt-3 px-4 py-2 w-full md:w-auto bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-sm font-semibold transition-all shadow-sm active:scale-95"
+                >
+                  {msg.action.label}
+                </button>
+              )}
               <div className={`flex items-center gap-2 mt-2 ${msg.role === 'user' ? 'justify-end' : 'justify-between'}`}>
                 <span className={`text-[10px] ${msg.role === 'user' ? 'text-white/50' : 'text-surface-400'}`}>
                   {msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

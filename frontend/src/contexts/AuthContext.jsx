@@ -5,11 +5,11 @@ const AuthContext = createContext(null);
 const MOCK_USERS = {
   admin: {
     id: 'admin-001',
-    name: 'Dr. Ahmed',
-    nameAr: 'د. أحمد',
+    name: 'Dr. Sherif Salem',
+    nameAr: 'د. شريف سالم',
     email: 'admin@raaed.edu',
     role: 'admin',
-    avatar: null,
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin&backgroundColor=b6e3f4',
   },
   student: {
     id: 'student-001',

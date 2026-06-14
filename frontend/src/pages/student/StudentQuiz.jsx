@@ -452,19 +452,21 @@ export default function StudentQuiz() {
             <p className="text-sm text-surface-400 max-w-md mx-auto">{gradeMessage}</p>
 
             <div className="flex items-center justify-center gap-3 mt-6">
-              <button
-                onClick={retryQuiz}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-surface-200 dark:border-surface-700 text-sm font-medium text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-all"
-              >
-                <RotateCcw size={16} />
-                Retry Quiz
-              </button>
+              {!activeTaskId && (
+                <button
+                  onClick={retryQuiz}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-surface-200 dark:border-surface-700 text-sm font-medium text-surface-600 dark:text-surface-300 hover:bg-surface-100 dark:hover:bg-surface-800 transition-all"
+                >
+                  <RotateCcw size={16} />
+                  Retry Quiz
+                </button>
+              )}
               <button
                 onClick={resetQuiz}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-medium hover:bg-primary-700 transition-all hover:shadow-glow"
               >
                 <BrainCircuit size={16} />
-                New Quiz
+                {activeTaskId ? 'Back to Setup' : 'New Quiz'}
               </button>
             </div>
           </div>

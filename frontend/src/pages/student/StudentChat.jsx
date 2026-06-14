@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ChatInterface from '../../components/ChatInterface';
 import { chatWithAgent, clearSession, getProjects, getActiveGuidelines } from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -10,6 +11,7 @@ export default function StudentChat() {
   const [projects, setProjects] = useState([]);
   const [projectId, setProjectId] = useState('testproject1');
   const toast = useToast();
+  const navigate = useNavigate();
 
   const fetchGuidance = async (projId) => {
     if (!projId) return;
@@ -19,12 +21,14 @@ export default function StudentChat() {
         const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         let welcomeText = "أهلاً بك! يوجهنا المعلم اليوم للتركيز على المواضيع التالية:\nWelcome! Today, our focus is on the following topics:\n\n";
         
+        let hasQuiz = false;
         guidelines.forEach(g => {
           // Clean up the description just in case it contains internal system prompt artifacts
           const cleanDesc = g.description.replace(/Create a quiz|Generate a quiz|Focus on/gi, '').trim();
           
           if (g.task_type.toLowerCase() === 'quiz') {
-            welcomeText += `• كويز مطلوب (Assigned Quiz): ${cleanDesc}\n  (الرجاء الانتقال لصفحة الكويزات لتأديته / Please go to the Quizzes page to take it)\n\n`;
+            welcomeText += `• كويز مطلوب (Assigned Quiz): ${cleanDesc}\n\n`;
+            hasQuiz = true;
           } else {
             welcomeText += `• تركيز (Focus Topic): ${cleanDesc}\n\n`;
           }
@@ -32,11 +36,20 @@ export default function StudentChat() {
         
         welcomeText += "كيف يمكنني مساعدتك اليوم؟\nHow can I help you today?";
         
-        setMessages([{
+        const welcomeMessage = {
           role: 'assistant',
           content: welcomeText,
           timestamp
-        }]);
+        };
+        
+        if (hasQuiz) {
+          welcomeMessage.action = {
+             label: 'الذهاب إلى صفحة الكويز (Take Quiz)',
+             onClick: () => navigate('/student/quiz')
+          };
+        }
+        
+        setMessages([welcomeMessage]);
       } else {
         setMessages([]);
       }

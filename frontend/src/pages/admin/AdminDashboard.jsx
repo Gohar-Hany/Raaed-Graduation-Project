@@ -59,7 +59,7 @@ export default function AdminDashboard() {
             Dashboard
           </h1>
           <p className="text-surface-500 dark:text-surface-400 mt-1">
-            Welcome back, Dr. Ahmed — here's your system overview
+            Welcome back, Dr. Sherif Salem — here's your system overview
           </p>
         </div>
         <button

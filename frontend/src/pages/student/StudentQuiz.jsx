@@ -39,7 +39,7 @@ export default function StudentQuiz() {
           
           let completedTaskIds = [];
           try {
-             const res = await getCompletedQuizzes(user.id);
+             const res = await getCompletedQuizzes(user?.id);
              completedTaskIds = res.completed_tasks || [];
           } catch (e) {
              console.error("Failed to fetch completed quizzes", e);
@@ -68,7 +68,7 @@ export default function StudentQuiz() {
     
     const intervalId = setInterval(fetchQuizzes, 30000);
     return () => clearInterval(intervalId);
-  }, [user.id]);
+  }, [user?.id]);
 
   const startAssignedQuiz = (quizItem) => {
     setQuizData(quizItem.quiz);
@@ -127,7 +127,7 @@ export default function StudentQuiz() {
         
         try {
           await submitQuizResult({
-            student_id: user.id,
+            student_id: user?.id,
             task_id: activeTaskId,
             score: score,
             total: quizData.questions.length,

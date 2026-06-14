@@ -16,13 +16,11 @@ export default function StudentDashboard() {
       try {
         const list = await getProjects();
         if (list.length > 0) {
-          // Find if testproject1 exists, otherwise just default
-        const fetchQuizzes = async () => {
           let allQuizzes = [];
-          
           let completedTaskIds = [];
+          
           try {
-             const res = await getCompletedQuizzes(user.id);
+             const res = await getCompletedQuizzes(user?.id);
              completedTaskIds = res.completed_tasks || [];
           } catch (e) {
              console.error("Failed to fetch completed quizzes", e);
@@ -42,20 +40,16 @@ export default function StudentDashboard() {
             }
           }
           setAssignedQuizzes(allQuizzes);
-        };
-        
-        await fetchQuizzes();
-        
-        // Polling every 30 seconds
-        const intervalId = setInterval(fetchQuizzes, 30000);
-        return () => clearInterval(intervalId);
         }
       } catch (err) {
-        console.error('Failed to load projects:', err);
+        console.error('Failed to load projects/quizzes:', err);
       }
     };
-    loadAllData();
-  }, []);
+
+    fetchQuizzes();
+    const intervalId = setInterval(fetchQuizzes, 30000);
+    return () => clearInterval(intervalId);
+  }, [user?.id]);
 
   const STUDY_TIPS = [
     { icon: Lightbulb, iconColor: 'text-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-950/30', title: 'Ask Specific Questions', desc: 'The more specific your question, the better the AI can find relevant content.' },

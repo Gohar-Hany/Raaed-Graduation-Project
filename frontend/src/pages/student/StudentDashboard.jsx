@@ -1,24 +1,32 @@
 import { MessageSquare, BrainCircuit, BookOpen, Sparkles, Lightbulb, FileEdit, RefreshCw, Bell, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getProjects, getAssignedQuizzes } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { getProjects, getAssignedQuizzes, getCompletedQuizzes } from '../../services/api';
+import { useToast } from '../../components/Toast';
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { showToast } = useToast();
   const [assignedQuizzes, setAssignedQuizzes] = useState([]);
-  const [projectId, setProjectId] = useState('testproject1');
 
   useEffect(() => {
-    const loadAllData = async () => {
+    const fetchQuizzes = async () => {
       try {
         const list = await getProjects();
         if (list.length > 0) {
           // Find if testproject1 exists, otherwise just default
-          const hasTest = list.some(p => p.project_id === 'testproject1');
-          setProjectId(hasTest ? 'testproject1' : list[0].project_id);
-          
+        const fetchQuizzes = async () => {
           let allQuizzes = [];
-          const completedTaskIds = JSON.parse(localStorage.getItem('completedQuizzes') || '[]');
+          
+          let completedTaskIds = [];
+          try {
+             const res = await getCompletedQuizzes(user.id);
+             completedTaskIds = res.completed_tasks || [];
+          } catch (e) {
+             console.error("Failed to fetch completed quizzes", e);
+          }
           
           for (const project of list) {
             try {
@@ -34,6 +42,13 @@ export default function StudentDashboard() {
             }
           }
           setAssignedQuizzes(allQuizzes);
+        };
+        
+        await fetchQuizzes();
+        
+        // Polling every 30 seconds
+        const intervalId = setInterval(fetchQuizzes, 30000);
+        return () => clearInterval(intervalId);
         }
       } catch (err) {
         console.error('Failed to load projects:', err);

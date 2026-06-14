@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from routes.schemes.agent import (
     ChatRequest, ChatResponse, QuizRequest, QuizResponse, 
-    SessionClearResponse, TaskWebhookRequest
+    SessionClearResponse, TaskWebhookRequest, QuizResultRequest
 )
 from models.ProjectModel import ProjectModel
 from models.db_schemes.instructor_guideline import InstructorGuideline
@@ -97,10 +97,10 @@ async def chat_with_agent(request: Request, project_id: str, chat_request: ChatR
             )
             
         # 2. Get or create session
-        session_id = session_manager.get_or_create_session(chat_request.session_id, project_id)
+        session_id = await session_manager.get_or_create_session(request.app.db_client, chat_request.session_id, project_id)
         
         # 3. Retrieve history
-        history = session_manager.get_history(session_id)
+        history = await session_manager.get_history(request.app.db_client, session_id)
         
         # 4. Instantiate NLPController
         nlp_controller = NLPController(
@@ -130,8 +130,8 @@ async def chat_with_agent(request: Request, project_id: str, chat_request: ChatR
 
         
         # 6. Update history
-        session_manager.add_message(session_id, "user", chat_request.message)
-        session_manager.add_message(session_id, "assistant", response_text)
+        await session_manager.add_message(request.app.db_client, session_id, "user", chat_request.message)
+        await session_manager.add_message(request.app.db_client, session_id, "assistant", response_text)
         
         return ChatResponse(
             response=response_text,
@@ -191,8 +191,8 @@ async def generate_quiz(request: Request, project_id: str, quiz_request: QuizReq
         )
 
 @agent_router.delete("/session/{session_id}", response_model=SessionClearResponse)
-async def clear_session(session_id: str):
-    existed = session_manager.clear_session(session_id)
+async def clear_session(request: Request, session_id: str):
+    existed = await session_manager.clear_session(request.app.db_client, session_id)
     status_msg = "cleared" if existed else "not_found"
     return SessionClearResponse(status=status_msg)
 
@@ -207,13 +207,16 @@ async def task_webhook(request: Request, payload: TaskWebhookRequest, background
         if not project_id:
             project_id = "general"
 
-        # Fetch or create project in DB
+        # Fetch project in DB to ensure it exists
         project_model = await ProjectModel.create_instance(
             db_client=request.app.db_client
         )
-        await project_model.get_project_or_create_one(
+        project = await project_model.get_project(
             project_id=project_id
         )
+        if not project:
+            logger.warning(f"Webhook received task for non-existent project: {project_id}. Rejecting task.")
+            return JSONResponse(status_code=404, content={"detail": f"Project '{project_id}' does not exist."})
 
         # Create guideline object
         guideline = InstructorGuideline(
@@ -270,9 +273,42 @@ async def get_assigned_quizzes(request: Request, project_id: str):
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
             quizzes.append(doc)
-        return quizzes
+        return JSONResponse(status_code=200, content=quizzes)
     except Exception as e:
-        logger.error(f"Error fetching quizzes: {e}")
+        logger.error(f"Error fetching assigned quizzes: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@agent_router.post("/quizzes/results")
+async def submit_quiz_result(request: Request, payload: QuizResultRequest):
+    try:
+        result_doc = {
+            "student_id": payload.student_id,
+            "task_id": payload.task_id,
+            "score": payload.score,
+            "total": payload.total,
+            "answers": payload.answers,
+            "completed_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        await request.app.db_client["student_results"].update_one(
+            {"student_id": payload.student_id, "task_id": payload.task_id},
+            {"$set": result_doc},
+            upsert=True
+        )
+        return JSONResponse(status_code=200, content={"status": "success", "message": "Quiz result saved"})
+    except Exception as e:
+        logger.error(f"Error saving quiz result: {e}")
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@agent_router.get("/quizzes/completed/{student_id}")
+async def get_completed_quizzes(request: Request, student_id: str):
+    try:
+        cursor = request.app.db_client["student_results"].find({"student_id": student_id})
+        completed_tasks = []
+        async for doc in cursor:
+            completed_tasks.append(doc["task_id"])
+        return JSONResponse(status_code=200, content={"completed_tasks": completed_tasks})
+    except Exception as e:
+        logger.error(f"Error fetching completed quizzes: {e}")
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
 @agent_router.get("/guidelines/active/{project_id}")

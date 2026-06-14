@@ -109,7 +109,9 @@ async def create_or_update_guideline(request: Request, payload: dict, background
 
         from models.ProjectModel import ProjectModel
         project_model = await ProjectModel.create_instance(db_client=request.app.db_client)
-        await project_model.get_project_or_create_one(project_id=project_id)
+        project = await project_model.get_project(project_id=project_id)
+        if not project:
+            return JSONResponse(status_code=404, content={"detail": f"Project '{project_id}' does not exist."})
         
         task_type = payload.get("task_type", "Quiz")
         guideline = InstructorGuideline(

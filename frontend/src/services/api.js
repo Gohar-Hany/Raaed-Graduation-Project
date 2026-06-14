@@ -126,6 +126,12 @@ export const getActiveGuidelines = (projectId) =>
 export const getAssignedQuizzes = (projectId) =>
   api.get(`/agent/quizzes/${projectId}`);
 
+export const submitQuizResult = (payload) =>
+  api.post('/agent/quizzes/results', payload);
+
+export const getCompletedQuizzes = (studentId) =>
+  api.get(`/agent/quizzes/completed/${studentId}`);
+
 // Admin services
 export const createTask = (request) =>
   api.post('/admin/task/create', { request });

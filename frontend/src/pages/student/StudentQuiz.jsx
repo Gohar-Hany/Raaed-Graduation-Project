@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { generateQuiz, getProjects, getAssignedQuizzes } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { generateQuiz, getProjects, getAssignedQuizzes, submitQuizResult, getCompletedQuizzes } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import {
   BrainCircuit, Loader2, CheckCircle, XCircle, ArrowRight,
@@ -18,6 +19,7 @@ export default function StudentQuiz() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showExplanation, setShowExplanation] = useState(false);
+  const { user } = useAuth();
   const [answers, setAnswers] = useState([]);
   const [activeTaskId, setActiveTaskId] = useState(null);
   const toast = useToast();
@@ -25,7 +27,7 @@ export default function StudentQuiz() {
   const [assignedQuizzes, setAssignedQuizzes] = useState([]);
 
   useEffect(() => {
-    const loadAllData = async () => {
+    const fetchQuizzes = async () => {
       try {
         const list = await getProjects();
         setProjects(list);
@@ -34,7 +36,14 @@ export default function StudentQuiz() {
           setProjectId(hasTest ? 'testproject1' : list[0].project_id);
           
           let allQuizzes = [];
-          const completedTaskIds = JSON.parse(localStorage.getItem('completedQuizzes') || '[]');
+          
+          let completedTaskIds = [];
+          try {
+             const res = await getCompletedQuizzes(user.id);
+             completedTaskIds = res.completed_tasks || [];
+          } catch (e) {
+             console.error("Failed to fetch completed quizzes", e);
+          }
           
           for (const project of list) {
             try {
@@ -55,8 +64,11 @@ export default function StudentQuiz() {
         console.error('Failed to load projects:', err);
       }
     };
-    loadAllData();
-  }, []);
+    fetchQuizzes();
+    
+    const intervalId = setInterval(fetchQuizzes, 30000);
+    return () => clearInterval(intervalId);
+  }, [user.id]);
 
   const startAssignedQuiz = (quizItem) => {
     setQuizData(quizItem.quiz);
@@ -103,18 +115,30 @@ export default function StudentQuiz() {
     }]);
   };
 
-  const nextQuestion = () => {
+  const nextQuestion = async () => {
     if (currentQuestion < quizData.questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
       setSelectedAnswer(null);
       setShowExplanation(false);
     } else {
       if (activeTaskId) {
-        const completed = JSON.parse(localStorage.getItem('completedQuizzes') || '[]');
-        if (!completed.includes(activeTaskId)) {
-          completed.push(activeTaskId);
-          localStorage.setItem('completedQuizzes', JSON.stringify(completed));
+        // Calculate Score
+        const score = answers.filter((a, i) => a === quizData.questions[i].correct_answer).length;
+        
+        try {
+          await submitQuizResult({
+            student_id: user.id,
+            task_id: activeTaskId,
+            score: score,
+            total: quizData.questions.length,
+            answers: answers.reduce((acc, curr, index) => {
+               acc[index] = curr;
+               return acc;
+            }, {})
+          });
           setAssignedQuizzes(prev => prev.filter(q => q.task_id !== activeTaskId));
+        } catch (e) {
+          toast.error("Failed to save quiz result");
         }
       }
       setState(STATES.RESULTS);

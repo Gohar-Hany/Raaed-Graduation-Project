@@ -54,7 +54,7 @@ export default function ChatInterface({
           <button
             onClick={onClear}
             className="p-2 rounded-lg text-surface-400 hover:text-danger-500 hover:bg-danger-500/10 transition-all"
-            title="Clear chat"
+            aria-label="Clear chat"
           >
             <Trash2 size={18} />
           </button>
@@ -111,6 +111,7 @@ export default function ChatInterface({
                   <button
                     onClick={() => copyToClipboard(msg.content, i)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-surface-200 dark:hover:bg-surface-700"
+                    aria-label="Copy message"
                   >
                     {copiedId === i ? (
                       <Check size={12} className="text-accent-500" />
@@ -162,6 +163,7 @@ export default function ChatInterface({
             type="submit"
             disabled={!input.trim() || loading}
             className="p-2 rounded-xl bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:shadow-glow active:scale-95"
+            aria-label="Send message"
           >
             {loading ? (
               <Loader2 size={18} className="animate-spin" />

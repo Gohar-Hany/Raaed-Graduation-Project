@@ -16,7 +16,7 @@ export default function AdminChat() {
 
     try {
       const result = await createTask(message);
-      const botMessage = `✅ Task created successfully!\n\n📋 Task ID: ${result.task_id}\n📌 Status: ${result.status}\n\nThe task has been queued and sent to the AI assistant via webhook.`;
+      const botMessage = `Task created successfully.\n\nTask ID: ${result.task_id}\nStatus: ${result.status}\n\nThe task has been queued and sent to the AI assistant via webhook.`;
       setMessages(prev => [...prev, {
         role: 'assistant',
         content: botMessage,
@@ -27,7 +27,7 @@ export default function AdminChat() {
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `❌ Error: ${err.message}\n\nPlease make sure the backend server is running on port 8000.`,
+        content: `Error: ${err.message}\n\nPlease make sure the backend server is running on port 8000.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }]);
       toast.error('Failed to create task');

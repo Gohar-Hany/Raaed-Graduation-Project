@@ -99,6 +99,21 @@ def run_admin_crew(
     os.environ["OPENAI_API_BASE"] = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
     os.environ["OPENAI_BASE_URL"] = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
 
+    # Query existing courses/projects from MongoDB to map the task
+    existing_courses = ["General"]
+    try:
+        from pymongo import MongoClient
+        client = MongoClient(settings.MONGODB_URL)
+        db = client[settings.MONGODB_DATABASE or "raad-rag"]
+        projects = list(db["projects"].find({}))
+        if projects:
+            existing_courses = [p.get("project_id", "General") for p in projects]
+        client.close()
+    except Exception as ex:
+        logger.error(f"[Admin Agent] Failed to query existing courses: {ex}")
+
+    courses_list_str = ", ".join(existing_courses)
+
     # Define the Admin Agent
     admin_agent = Agent(
         role="Admin Agent / Request Analyzer",
@@ -118,7 +133,7 @@ def run_admin_crew(
         description=f"""Analyze the user's natural language request: "{user_request}".
 Identify the following information:
 1. Task Type: Classify into one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam. If not clear, default to Quiz.
-2. Course: Extract the course or subject name. Default to "General" if not specified.
+2. Course: Extract the course or subject name. You MUST map it strictly to one of these existing courses: {courses_list_str}. Default to "General" (or the first available course in the list) if not matching or specified. Do not invent a new course.
 3. Description: Generate a clear, concise description of what needs to be created.
 4. Priority: Determine priority (High if urgent, or if it is an Exam or Quiz; Medium for Assignments; Low for Flashcards/Study Guides/Summaries, unless specified otherwise).
 5. Notes: Extract specific parameters or formatting details (e.g. "20 MCQs, Chapter 3", "5 pages long").""",

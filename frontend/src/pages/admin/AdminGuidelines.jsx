@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Power, PowerOff, Edit3, Trash2, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Power, PowerOff, Edit3, Trash2, AlertCircle, Loader2, BookOpen } from 'lucide-react';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
 import { getGuidelines, saveGuideline, toggleGuideline, deleteGuideline } from '../../services/api';
@@ -188,8 +188,9 @@ export default function AdminGuidelines() {
                 <p className="text-xs text-surface-400 mb-2">{g.notes}</p>
               )}
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-100 dark:border-surface-800/50">
-                <span className="text-xs text-surface-400">
-                  📚 {g.project_id || g.course || 'General'}
+                <span className="text-xs text-surface-400 flex items-center gap-1">
+                  <BookOpen size={12} className="text-surface-400" />
+                  {g.project_id || g.course || 'General'}
                 </span>
                 <span className="text-xs text-surface-400">
                   {g.created_at ? new Date(g.created_at.includes(' ') ? g.created_at.replace(' ', 'T') : g.created_at).toLocaleDateString() : 'N/A'}

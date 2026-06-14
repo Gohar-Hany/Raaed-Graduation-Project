@@ -3,7 +3,7 @@ import { generateQuiz, getProjects } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import {
   BrainCircuit, Loader2, CheckCircle, XCircle, ArrowRight,
-  RotateCcw, Trophy, Target, Clock, Sparkles
+  RotateCcw, Trophy, Target, Clock, Sparkles, Lightbulb
 } from 'lucide-react';
 
 const STATES = { SETUP: 'setup', LOADING: 'loading', QUIZ: 'quiz', RESULTS: 'results' };
@@ -297,8 +297,9 @@ export default function StudentQuiz() {
             {/* Explanation */}
             {showExplanation && (
               <div className="mt-6 p-4 rounded-xl bg-primary-50 dark:bg-primary-950/30 border border-primary-200 dark:border-primary-800 animate-slide-up">
-                <p className="text-sm font-semibold text-primary-700 dark:text-primary-300 mb-1">
-                  💡 Explanation
+                <p className="text-sm font-semibold text-primary-700 dark:text-primary-300 mb-1 flex items-center gap-1.5">
+                  <Lightbulb size={14} />
+                  Explanation
                 </p>
                 <p className="text-sm text-primary-600/80 dark:text-primary-400/80 leading-relaxed">
                   {question.explanation}

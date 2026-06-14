@@ -1,8 +1,14 @@
-import { MessageSquare, BrainCircuit, BookOpen, Sparkles } from 'lucide-react';
+import { MessageSquare, BrainCircuit, BookOpen, Sparkles, Lightbulb, FileEdit, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
+
+  const STUDY_TIPS = [
+    { icon: Lightbulb, iconColor: 'text-amber-500', bgColor: 'bg-amber-50 dark:bg-amber-950/30', title: 'Ask Specific Questions', desc: 'The more specific your question, the better the AI can find relevant content.' },
+    { icon: FileEdit, iconColor: 'text-primary-500', bgColor: 'bg-primary-50 dark:bg-primary-950/30', title: 'Quiz Regularly', desc: 'Take short quizzes after each study session to reinforce your learning.' },
+    { icon: RefreshCw, iconColor: 'text-accent-500', bgColor: 'bg-accent-50 dark:bg-accent-950/30', title: 'Follow Instructor Guidance', desc: "The AI adapts to your instructor's active guidelines for focused studying." },
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -39,7 +45,7 @@ export default function StudentDashboard() {
             <MessageSquare size={26} className="text-primary-500" />
           </div>
           <h3 className="text-xl font-bold text-surface-900 dark:text-surface-100 mb-2">
-            Chat with رائد
+            Study Chat
           </h3>
           <p className="text-sm text-surface-500 dark:text-surface-400 leading-relaxed mb-4">
             Ask questions about your course materials. I'll search through lecture content
@@ -86,13 +92,11 @@ export default function StudentDashboard() {
           Study Tips
         </h3>
         <div className="grid md:grid-cols-3 gap-4">
-          {[
-            { emoji: '💡', title: 'Ask Specific Questions', desc: 'The more specific your question, the better the AI can find relevant content.' },
-            { emoji: '📝', title: 'Quiz Regularly', desc: 'Take short quizzes after each study session to reinforce your learning.' },
-            { emoji: '🔄', title: 'Follow Instructor Guidance', desc: 'The AI adapts to your instructor\'s active guidelines for focused studying.' },
-          ].map((tip, i) => (
-            <div key={i} className="p-4 rounded-xl bg-surface-50 dark:bg-surface-800/50">
-              <span className="text-2xl mb-2 block">{tip.emoji}</span>
+          {STUDY_TIPS.map((tip, i) => (
+            <div key={i} className={`p-4 rounded-xl ${tip.bgColor}`}>
+              <div className={`w-9 h-9 rounded-lg bg-white/60 dark:bg-white/10 flex items-center justify-center mb-3`}>
+                <tip.icon size={18} className={tip.iconColor} />
+              </div>
               <p className="text-sm font-semibold text-surface-900 dark:text-surface-100 mb-1">{tip.title}</p>
               <p className="text-xs text-surface-400 leading-relaxed">{tip.desc}</p>
             </div>

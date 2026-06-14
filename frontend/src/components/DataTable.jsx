@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import {
   ChevronUp, ChevronDown, Search, ChevronLeft, ChevronRight,
-  Edit3, Trash2, Plus, X, Check, Download
+  Edit3, Trash2, Plus, X, Check, Download, Database
 } from 'lucide-react';
 
 export default function DataTable({
@@ -164,9 +164,16 @@ export default function DataTable({
               ))
             ) : pagedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + (onEdit || onDelete ? 1 : 0)} className="text-center py-12 text-surface-400">
-                  <p className="text-lg mb-1">No data found</p>
-                  <p className="text-xs">Try adjusting your search or add new entries</p>
+                <td colSpan={columns.length + (onEdit || onDelete ? 1 : 0)} className="text-center py-16 text-surface-400">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-14 h-14 rounded-2xl bg-surface-100 dark:bg-surface-800 flex items-center justify-center">
+                      <Database size={24} className="text-surface-300 dark:text-surface-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-surface-500 dark:text-surface-400">No data found</p>
+                      <p className="text-xs text-surface-400 dark:text-surface-500 mt-0.5">Try adjusting your search or add new entries</p>
+                    </div>
+                  </div>
                 </td>
               </tr>
             ) : (

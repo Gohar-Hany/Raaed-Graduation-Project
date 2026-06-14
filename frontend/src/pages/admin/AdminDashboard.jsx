@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { FolderOpen, FileText, Layers, BookOpen, Activity, RefreshCw } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import {
+  FolderOpen, FileText, Layers, BookOpen, Activity, RefreshCw,
+  MessageSquare, BarChart3, ClipboardList, Upload
+} from 'lucide-react';
 import StatsCard from '../../components/StatsCard';
 import { healthCheck } from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -39,6 +43,13 @@ export default function AdminDashboard() {
 
   useEffect(() => { fetchStats(); }, []);
 
+  const QUICK_ACTIONS = [
+    { label: 'Upload Files', desc: 'Add course materials', href: '/admin/upload', icon: Upload, color: 'bg-primary-50 dark:bg-primary-950/30', iconColor: 'text-primary-500' },
+    { label: 'Command Chat', desc: 'Issue admin commands', href: '/admin/chat', icon: MessageSquare, color: 'bg-violet-50 dark:bg-violet-950/30', iconColor: 'text-violet-500' },
+    { label: 'Data Manager', desc: 'View & edit records', href: '/admin/data', icon: BarChart3, color: 'bg-amber-50 dark:bg-amber-950/30', iconColor: 'text-amber-500' },
+    { label: 'Guidelines', desc: 'Manage directives', href: '/admin/guidelines', icon: ClipboardList, color: 'bg-emerald-50 dark:bg-emerald-950/30', iconColor: 'text-emerald-500' },
+  ];
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Page Header */}
@@ -72,7 +83,7 @@ export default function AdminDashboard() {
         />
         <StatsCard
           title="Projects"
-          value={stats?.stats?.projects_count !== undefined ? stats.stats.projects_count : '—'}
+          value={stats?.stats?.projects_count !== undefined ? stats.stats.projects_count : '\u2014'}
           subtitle="Manage via Data tab"
           icon={FolderOpen}
           color="primary"
@@ -80,7 +91,7 @@ export default function AdminDashboard() {
         />
         <StatsCard
           title="Documents"
-          value={stats?.stats?.documents_count !== undefined ? stats.stats.documents_count : '—'}
+          value={stats?.stats?.documents_count !== undefined ? stats.stats.documents_count : '\u2014'}
           subtitle="Upload new materials"
           icon={FileText}
           color="warning"
@@ -88,7 +99,7 @@ export default function AdminDashboard() {
         />
         <StatsCard
           title="Active Guidelines"
-          value={stats?.stats?.guidelines_count !== undefined ? stats.stats.guidelines_count : '—'}
+          value={stats?.stats?.guidelines_count !== undefined ? stats.stats.guidelines_count : '\u2014'}
           subtitle="View in Guidelines tab"
           icon={BookOpen}
           color="accent"
@@ -136,21 +147,18 @@ export default function AdminDashboard() {
             Quick Actions
           </h3>
           <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Upload Files', desc: 'Add course materials', href: '/admin/upload', icon: '📄', color: 'bg-blue-50 dark:bg-blue-950/30' },
-              { label: 'Command Chat', desc: 'Issue admin commands', href: '/admin/chat', icon: '💬', color: 'bg-purple-50 dark:bg-purple-950/30' },
-              { label: 'Data Manager', desc: 'View & edit records', href: '/admin/data', icon: '📊', color: 'bg-amber-50 dark:bg-amber-950/30' },
-              { label: 'Guidelines', desc: 'Manage directives', href: '/admin/guidelines', icon: '📋', color: 'bg-emerald-50 dark:bg-emerald-950/30' },
-            ].map((action) => (
-              <a
+            {QUICK_ACTIONS.map((action) => (
+              <Link
                 key={action.label}
-                href={action.href}
+                to={action.href}
                 className={`${action.color} rounded-xl p-4 hover:scale-[1.03] transition-all duration-200 group`}
               >
-                <span className="text-2xl">{action.icon}</span>
-                <p className="text-sm font-semibold text-surface-900 dark:text-surface-100 mt-2">{action.label}</p>
+                <div className={`w-10 h-10 rounded-lg bg-white/60 dark:bg-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                  <action.icon size={20} className={action.iconColor} />
+                </div>
+                <p className="text-sm font-semibold text-surface-900 dark:text-surface-100">{action.label}</p>
                 <p className="text-xs text-surface-400 mt-0.5">{action.desc}</p>
-              </a>
+              </Link>
             ))}
           </div>
         </div>

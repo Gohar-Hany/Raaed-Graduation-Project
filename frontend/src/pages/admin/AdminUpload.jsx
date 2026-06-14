@@ -2,12 +2,12 @@ import { useState } from 'react';
 import FileUpload from '../../components/FileUpload';
 import { uploadFile, processFiles, pushToIndex } from '../../services/api';
 import { useToast } from '../../components/Toast';
-import { Cpu, Database, Loader2, CheckCircle, ArrowRight } from 'lucide-react';
+import { Cpu, Database, Loader2, CheckCircle, ArrowRight, Upload, Search, AlertCircle } from 'lucide-react';
 
 const PIPELINE_STEPS = [
-  { id: 'upload', label: 'Upload', desc: 'Upload file to server', icon: '📤' },
-  { id: 'process', label: 'Process', desc: 'Extract & chunk content', icon: '⚙️' },
-  { id: 'index', label: 'Index', desc: 'Push to vector database', icon: '🔍' },
+  { id: 'upload', label: 'Upload', desc: 'Upload file to server', Icon: Upload },
+  { id: 'process', label: 'Process', desc: 'Extract & chunk content', Icon: Cpu },
+  { id: 'index', label: 'Index', desc: 'Push to vector database', Icon: Search },
 ];
 
 export default function AdminUpload() {
@@ -111,13 +111,26 @@ export default function AdminUpload() {
                   'border-surface-200 dark:border-surface-700 bg-surface-50 dark:bg-surface-800/50'
                 }`}>
                   <div className="flex items-center gap-3">
-                    <span className="text-2xl">{step.icon}</span>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      status === 'running' ? 'bg-primary-100 dark:bg-primary-900/50' :
+                      status === 'done' ? 'bg-accent-100 dark:bg-accent-900/50' :
+                      status === 'error' ? 'bg-danger-100 dark:bg-danger-900/50' :
+                      'bg-surface-200 dark:bg-surface-700'
+                    }`}>
+                      <step.Icon size={20} className={
+                        status === 'running' ? 'text-primary-500' :
+                        status === 'done' ? 'text-accent-500' :
+                        status === 'error' ? 'text-danger-500' :
+                        'text-surface-400'
+                      } />
+                    </div>
                     <div>
                       <p className="text-sm font-semibold text-surface-900 dark:text-surface-100">{step.label}</p>
                       <p className="text-xs text-surface-400">{step.desc}</p>
                     </div>
                     {status === 'running' && <Loader2 size={16} className="animate-spin text-primary-500 ml-auto" />}
                     {status === 'done' && <CheckCircle size={16} className="text-accent-500 ml-auto" />}
+                    {status === 'error' && <AlertCircle size={16} className="text-danger-500 ml-auto" />}
                   </div>
                 </div>
                 {i < PIPELINE_STEPS.length - 1 && (

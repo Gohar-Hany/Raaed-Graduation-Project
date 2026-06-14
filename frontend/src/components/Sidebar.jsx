@@ -1,12 +1,12 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useSidebar } from '../contexts/SidebarContext';
 import {
   LayoutDashboard, MessageSquare, Database, Upload, BookOpen,
   GraduationCap, BrainCircuit, LogOut, Sun, Moon, ChevronLeft,
-  ChevronRight, Settings, Shield
+  ChevronRight, Shield
 } from 'lucide-react';
-import { useState } from 'react';
 
 const adminLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
@@ -18,15 +18,15 @@ const adminLinks = [
 
 const studentLinks = [
   { to: '/student', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/student/chat', icon: MessageSquare, label: 'Chat with رائد' },
+  { to: '/student/chat', icon: MessageSquare, label: 'Study Chat' },
   { to: '/student/quiz', icon: BrainCircuit, label: 'Take a Quiz' },
 ];
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const { collapsed, toggle: toggleSidebar } = useSidebar();
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
 
   const links = user?.role === 'admin' ? adminLinks : studentLinks;
   const isAdmin = user?.role === 'admin';
@@ -53,7 +53,7 @@ export default function Sidebar() {
         </div>
         {!collapsed && (
           <div className="animate-fade-in">
-            <h1 className="text-lg font-bold text-gradient leading-tight">رائد</h1>
+            <h1 className="text-lg font-bold text-gradient leading-tight font-arabic">رائد</h1>
             <p className="text-[10px] text-surface-400 font-medium tracking-wide uppercase">
               {isAdmin ? 'Admin Panel' : 'Student Portal'}
             </p>
@@ -68,6 +68,7 @@ export default function Sidebar() {
             key={link.to}
             to={link.to}
             end={link.end}
+            title={collapsed ? link.label : undefined}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group
               ${collapsed ? 'justify-center' : ''}
@@ -88,6 +89,7 @@ export default function Sidebar() {
         {/* Theme Toggle */}
         <button
           onClick={toggle}
+          title={collapsed ? (theme === 'dark' ? 'Light Mode' : 'Dark Mode') : undefined}
           className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
             text-surface-500 hover:bg-surface-100 dark:hover:bg-surface-800 hover:text-surface-900 dark:hover:text-surface-100
             ${collapsed ? 'justify-center' : ''}`}
@@ -112,6 +114,7 @@ export default function Sidebar() {
         {/* Logout */}
         <button
           onClick={handleLogout}
+          title={collapsed ? 'Logout' : undefined}
           className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200
             text-danger-500 hover:bg-danger-500/10
             ${collapsed ? 'justify-center' : ''}`}
@@ -122,7 +125,8 @@ export default function Sidebar() {
 
         {/* Collapse Toggle */}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleSidebar}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className={`flex items-center gap-3 w-full px-3 py-2 rounded-xl text-sm text-surface-400 hover:text-surface-600 dark:hover:text-surface-300 transition-colors
             ${collapsed ? 'justify-center' : ''}`}
         >

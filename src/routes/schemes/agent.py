@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 class ChatRequest(BaseModel):
     message: str
@@ -44,6 +44,6 @@ class QuizResultRequest(BaseModel):
     task_id: str
     score: int
     total: int
-    answers: Dict[str, Optional[str]]
+    answers: Dict[str, Any]
 
 

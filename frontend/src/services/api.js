@@ -180,3 +180,12 @@ export const toggleGuideline = (taskId) =>
 export const deleteGuideline = (taskId) =>
   api.delete(`/admin/guidelines/${taskId}`);
 
+// Admin User Management Services
+export const getUsers = () =>
+  api.get('/admin/users');
+
+export const updateUserRole = (userId, role) =>
+  api.put(`/admin/users/${userId}/role`, { role });
+
+export const getUserResults = (userId) =>
+  api.get(`/admin/users/${userId}/results`);

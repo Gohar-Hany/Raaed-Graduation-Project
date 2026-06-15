@@ -180,9 +180,12 @@ export default function StudentQuiz() {
       setSelectedAnswer(null);
       setShowExplanation(false);
     } else {
+      // Calculate Score for both assigned and custom quizzes
+      const score = answers.filter(a => a.isCorrect).length;
+      setQuizScore(score);
+      setQuizTotal(quizData.questions.length);
+
       if (activeTaskId) {
-        // Calculate Score
-        const score = answers.filter((a, i) => a.isCorrect).length;
         try {
             await submitQuizResult({
               student_id: user?.id,
@@ -205,9 +208,6 @@ export default function StudentQuiz() {
           } catch (e) {
             toast.error("Failed to save quiz result");
           }
-      } else {
-        setQuizScore(answers.filter((a, i) => a.isCorrect).length);
-        setQuizTotal(quizData.questions.length);
       }
       setState(STATES.RESULTS);
     }
@@ -536,11 +536,11 @@ export default function StudentQuiz() {
         <div className="max-w-3xl mx-auto">
           {/* Score Card */}
           <div className="bg-white dark:bg-surface-900 rounded-2xl border border-surface-200 dark:border-surface-800 p-8 shadow-card text-center mb-6">
-            <div className="flex items-center justify-center mb-6">
+            <div className="relative flex items-center justify-center mb-6">
               <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
                 <circle cx="70" cy="70" r="60" fill="none" stroke="currentColor" strokeWidth="8"
                   className="text-surface-200 dark:text-surface-800" />
-                <circle cx="70" cy="70" r="60" fill="none" strokeWidth="8" strokeLinecap="round"
+                <circle cx="70" cy="70" r="60" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round"
                   className={gradeColor}
                   style={{
                     strokeDasharray: circumference,

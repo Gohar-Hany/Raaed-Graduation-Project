@@ -47,3 +47,20 @@ class UserModel:
     def verify_password(self, plain_password: str, hashed_password: str) -> bool:
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
+    async def get_all_users(self) -> list:
+        """Fetch all users, excluding password_hash."""
+        users = []
+        async for user in self.collection.find({}, {"password_hash": 0}):
+            user["id"] = str(user.pop("_id"))
+            users.append(user)
+        return users
+
+    async def update_user_role(self, user_id: str, new_role: str) -> bool:
+        """Update a user's role. Returns True if a document was modified."""
+        result = await self.collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": {"role": new_role}}
+        )
+        return result.modified_count > 0
+
+

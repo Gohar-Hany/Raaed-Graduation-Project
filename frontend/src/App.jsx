@@ -13,6 +13,7 @@ import AdminChat from './pages/admin/AdminChat';
 import AdminData from './pages/admin/AdminData';
 import AdminUpload from './pages/admin/AdminUpload';
 import AdminGuidelines from './pages/admin/AdminGuidelines';
+import AdminStudents from './pages/admin/AdminStudents';
 
 // Student Pages
 import StudentDashboard from './pages/student/StudentDashboard';
@@ -47,6 +48,7 @@ function AppRoutes() {
       {/* Admin Routes */}
       <Route path="/admin" element={<ProtectedRoute role="admin"><DashboardLayout /></ProtectedRoute>}>
         <Route index element={<AdminDashboard />} />
+        <Route path="students" element={<AdminStudents />} />
         <Route path="chat" element={<AdminChat />} />
         <Route path="data" element={<AdminData />} />
         <Route path="upload" element={<AdminUpload />} />

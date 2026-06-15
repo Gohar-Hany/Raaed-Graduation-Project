@@ -1,14 +1,17 @@
-from fastapi import APIRouter, Request, status, BackgroundTasks
+from fastapi import APIRouter, Request, status, BackgroundTasks, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from routes.schemes.admin import TaskCreateRequest, TaskCreateResponse
 from agent.admin_crew import run_admin_crew
 from models.db_schemes.instructor_guideline import InstructorGuideline
 from models.InstructorGuidelineModel import InstructorGuidelineModel
+from models.UserModel import UserModel
 from routes.agent import generate_and_save_quiz_background
 import logging
 import re
 import datetime
+import jwt
+import os
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -175,3 +178,78 @@ async def delete_guideline(request: Request, task_id: str):
         logger.error(f"Error deleting guideline: {e}")
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
+
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-super-secret-jwt-key")
+ALGORITHM = "HS256"
+SUPER_ADMIN_EMAIL = "goharhany@gmail.com"
+
+
+async def get_admin_user(request: Request):
+    """Helper to extract and validate the admin user from the JWT token."""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        role = payload.get("role")
+        if not user_id or role != "admin":
+            raise HTTPException(status_code=403, detail="Admin access required")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user_model = await UserModel.create_instance(request.app.db_client)
+    user = await user_model.get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@admin_router.get("/users")
+async def list_users(request: Request):
+    """List all registered users (admin only)."""
+    await get_admin_user(request)
+    user_model = await UserModel.create_instance(request.app.db_client)
+    users = await user_model.get_all_users()
+    return users
+
+
+@admin_router.put("/users/{user_id}/role")
+async def update_user_role(request: Request, user_id: str):
+    """Change a user's role. Only the super admin (goharhany@gmail.com) can do this."""
+    admin_user = await get_admin_user(request)
+    if admin_user.get("email") != SUPER_ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Only the super admin can change roles")
+
+    body = await request.json()
+    new_role = body.get("role")
+    if new_role not in ("admin", "student"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'student'")
+
+    # Prevent super admin from demoting themselves
+    admin_id = str(admin_user.get("_id", admin_user.get("id")))
+    if user_id == admin_id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+
+    user_model = await UserModel.create_instance(request.app.db_client)
+    success = await user_model.update_user_role(user_id, new_role)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found or role unchanged")
+    return {"status": "success", "user_id": user_id, "new_role": new_role}
+
+
+@admin_router.get("/users/{user_id}/results")
+async def get_user_results(request: Request, user_id: str):
+    """Fetch all quiz results for a specific student (admin only)."""
+    await get_admin_user(request)
+    cursor = request.app.db_client["student_results"].find({"student_id": user_id})
+    results = []
+    async for doc in cursor:
+        results.append({
+            "task_id": doc.get("task_id"),
+            "score": doc.get("score"),
+            "total": doc.get("total"),
+            "answers": doc.get("answers"),
+            "completed_at": doc.get("completed_at")
+        })
+    return {"user_id": user_id, "results": results}

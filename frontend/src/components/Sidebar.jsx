@@ -5,11 +5,12 @@ import { useSidebar } from '../contexts/SidebarContext';
 import {
   LayoutDashboard, MessageSquare, Database, Upload, BookOpen,
   GraduationCap, BrainCircuit, LogOut, Sun, Moon, ChevronLeft,
-  ChevronRight, Shield
+  ChevronRight, Shield, Users
 } from 'lucide-react';
 
 const adminLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/admin/students', icon: Users, label: 'Student Management' },
   { to: '/admin/chat', icon: MessageSquare, label: 'Command Chat' },
   { to: '/admin/data', icon: Database, label: 'Data Management' },
   { to: '/admin/upload', icon: Upload, label: 'Upload Files' },

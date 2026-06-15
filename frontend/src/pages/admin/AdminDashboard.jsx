@@ -7,8 +7,10 @@ import {
 import StatsCard from '../../components/StatsCard';
 import { healthCheck } from '../../services/api';
 import { useToast } from '../../components/Toast';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [serverStatus, setServerStatus] = useState('checking');
@@ -59,7 +61,7 @@ export default function AdminDashboard() {
             Dashboard
           </h1>
           <p className="text-surface-500 dark:text-surface-400 mt-1">
-            Welcome back, Dr. Sherif Salem — here's your system overview
+            Welcome back, {user?.name || 'Admin'} — here's your system overview
           </p>
         </div>
         <button

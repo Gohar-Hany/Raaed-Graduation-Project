@@ -63,11 +63,14 @@ def create_orchestrator_tools(nlp_controller, project):
     from crewai.tools import tool
     
     @tool("Generate Quiz from Course Materials")
-    def generate_quiz_tool(topic: str) -> str:
+    def generate_quiz_tool(topic: str, num_questions: int = 5) -> str:
         """
         Generate a multiple-choice quiz on a specific topic using the course materials.
         Use this tool when the student explicitly requests a quiz, exam, or test on a topic.
-        Input should be the topic of the quiz.
+        
+        Args:
+            topic: The topic of the quiz.
+            num_questions: The number of questions to generate. MUST match the number the student requested (e.g., if they ask for 10 questions, pass 10). Default is 5 if not specified.
         """
         try:
             quiz_result = run_agent_quiz(
@@ -75,7 +78,7 @@ def create_orchestrator_tools(nlp_controller, project):
                 topic=topic,
                 nlp_controller=nlp_controller,
                 project=project,
-                num_questions=5
+                num_questions=num_questions
             )
             return json.dumps(quiz_result, ensure_ascii=False)
         except Exception as e:
@@ -134,6 +137,13 @@ Student's new message: "{user_message}"
 Decide whether to use the search or answer tools to find information in the course materials, 
 or call the 'Generate Quiz from Course Materials' tool if they want a quiz, 
 or respond directly if it is a general message (greeting, simple chat).
+
+CRITICAL QUIZ INSTRUCTIONS: If the student requests a quiz, exam, or test:
+- You MUST extract the exact number of questions the student requested (e.g., "10 questions", "15 سؤال", "20 MCQs").
+- Pass the extracted number as the 'num_questions' parameter to the quiz generation tool.
+- If the student does NOT specify a number, default to 5.
+- NEVER override or reduce the requested number of questions. If they ask for 10, you MUST pass num_questions=10.
+
 Always respond in a friendly, supportive tone matching the student's language (Arabic or English).
 """,
         expected_output="A helpful, accurate response to the student's message.",

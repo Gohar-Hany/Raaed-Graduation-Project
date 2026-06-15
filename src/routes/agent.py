@@ -14,9 +14,9 @@ import datetime
 
 logger = logging.getLogger("uvicorn.error")
 
-async def generate_and_save_quiz_background(app, project_id: str, task_id: str, topic: str):
+async def generate_and_save_quiz_background(app, project_id: str, task_id: str, topic: str, num_questions: int = 5):
     try:
-        logger.info(f"[Background Quiz] Starting quiz generation for task {task_id} on topic '{topic}'...")
+        logger.info(f"[Background Quiz] Starting quiz generation for task {task_id} on topic '{topic}' with {num_questions} questions...")
         # Get project
         from models.ProjectModel import ProjectModel
         project_model = await ProjectModel.create_instance(db_client=app.db_client)
@@ -42,7 +42,7 @@ async def generate_and_save_quiz_background(app, project_id: str, task_id: str, 
             topic=topic,
             nlp_controller=nlp_controller,
             project=project,
-            num_questions=5
+            num_questions=num_questions
         )
 
         # Save to generated_quizzes collection
@@ -239,12 +239,19 @@ async def task_webhook(request: Request, payload: TaskWebhookRequest, background
         # If it is a Quiz, trigger background generation
         if payload.task_type.lower() == "quiz":
             topic = payload.notes or payload.description or "General Topic"
+            # Extract num_questions from notes (e.g., "10 MCQs", "20 questions", "15 سؤال")
+            num_questions = 5  # default
+            notes_text = (payload.notes or "") + " " + (payload.description or "")
+            num_match = re.search(r'(\d+)\s*(?:MCQs?|questions?|سؤال|أسئلة)', notes_text, re.IGNORECASE)
+            if num_match:
+                num_questions = int(num_match.group(1))
             background_tasks.add_task(
                 generate_and_save_quiz_background,
                 request.app,
                 project_id,
                 payload.task_id,
-                topic
+                topic,
+                num_questions
             )
 
         logger.info(f"Webhook processed successfully for task {payload.task_id} under project {project_id}")

@@ -134,12 +134,19 @@ async def create_or_update_guideline(request: Request, payload: dict, background
         # Trigger background quiz generation if task_type is Quiz
         if task_type.lower() == "quiz":
             topic = payload.get("notes") or payload.get("description") or "General Topic"
+            # Extract num_questions from notes/description (e.g., "10 MCQs", "20 questions", "15 سؤال")
+            num_questions = 5  # default
+            notes_text = (payload.get("notes") or "") + " " + (payload.get("description") or "")
+            num_match = re.search(r'(\d+)\s*(?:MCQs?|questions?|سؤال|أسئلة)', notes_text, re.IGNORECASE)
+            if num_match:
+                num_questions = int(num_match.group(1))
             background_tasks.add_task(
                 generate_and_save_quiz_background,
                 request.app,
                 project_id,
                 task_id,
-                topic
+                topic,
+                num_questions
             )
 
         return {"status": "success", "task_id": task_id}

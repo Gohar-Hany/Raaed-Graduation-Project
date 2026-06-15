@@ -1,7 +1,7 @@
 {
   "source": "/mnt/d/Raaed/src/assets/files/testproject1/lha1b6s0pc30_Math_Session_1.pdf",
   "status": "PASS",
-  "processing_time_sec": 2418.46,
+  "processing_time_sec": 421.21,
   "page_coverage": {
     "expected": 32,
     "extracted": 32,

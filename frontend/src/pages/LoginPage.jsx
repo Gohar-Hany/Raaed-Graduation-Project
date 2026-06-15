@@ -46,12 +46,12 @@ export default function LoginPage() {
         <div className="bg-white/80 dark:bg-surface-900/80 backdrop-blur-2xl rounded-3xl border border-white/20 dark:border-surface-800 shadow-2xl p-8 sm:p-10 animate-slide-up">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl gradient-primary shadow-glow-lg mb-4">
-              <Sparkles size={28} className="text-white" />
+            <div className="inline-flex items-center justify-center mb-4">
+              <img src="/favicon.png" alt="Raaed Logo" className="w-24 h-24 object-contain drop-shadow-xl" />
             </div>
-            <h1 className="text-3xl font-extrabold text-gradient mb-2 font-arabic">OO OO_</h1>
+            <h1 className="text-3xl font-extrabold text-gradient mb-2 font-arabic">رائد | Raaed</h1>
             <p className="text-surface-500 dark:text-surface-400 font-medium">
-              {isRegistering ? 'Create your student account' : 'Welcome back to Raaed'}
+              {isRegistering ? 'Create your student account' : 'Welcome to Raaed'}
             </p>
           </div>
 

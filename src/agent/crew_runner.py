@@ -177,7 +177,7 @@ def run_agent_quiz(
     quiz_task = Task(
         description=f"""
 Search the course materials for content related to the topic: "{topic}".
-Based on the retrieved content, generate exactly {num_questions} multiple-choice questions.
+Based on the retrieved content, generate EXACTLY {num_questions} multiple-choice questions. It is CRITICAL that the output contains exactly {num_questions} questions in the list, no more and no less.
 Each question must have 4 options (A, B, C, D), a single correct answer, and an explanation.
 You MUST output a valid JSON object matching the schema:
 - topic: The topic of the quiz

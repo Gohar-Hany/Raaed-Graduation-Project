@@ -19,10 +19,32 @@ export default function StudentQuiz() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [animatedOffset, setAnimatedOffset] = useState(2 * Math.PI * 60);
   const { user } = useAuth();
+
   const [answers, setAnswers] = useState([]);
   const [activeTaskId, setActiveTaskId] = useState(null);
+  const [quizScore, setQuizScore] = useState(null);
+  const [quizTotal, setQuizTotal] = useState(null);
   const toast = useToast();
+
+  useEffect(() => {
+    if (state === STATES.RESULTS) {
+      const correctCount = quizScore !== null ? quizScore : answers.filter(a => a.isCorrect).length;
+      const totalCount = quizTotal !== null ? quizTotal : answers.length;
+      const percentage = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
+      const circumference = 2 * Math.PI * 60;
+      const offset = circumference - (percentage / 100) * circumference;
+      
+      const timer = setTimeout(() => {
+        setAnimatedOffset(offset);
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      // safe fallback
+      setAnimatedOffset(2 * Math.PI * 60);
+    }
+  }, [state, quizScore, quizTotal, answers]);
 
   const [assignedQuizzes, setAssignedQuizzes] = useState([]);
 
@@ -61,9 +83,11 @@ export default function StudentQuiz() {
                        project_id: project.project_id,
                        isCompleted: !!completedData,
                        score: completedData?.score,
-                       total: completedData?.total
+                       total: completedData?.total,
+                       pastAnswers: completedData?.answers
                      };
-                   });
+                   })
+                   .filter(q => q.topic && q.topic !== 'N/A' && q.quiz?.questions?.length > 0);
                  allQuizzes = [...allQuizzes, ...enrichedQuizzes];
               }
             } catch (err) {
@@ -88,11 +112,29 @@ export default function StudentQuiz() {
     setQuizData(quizItem.quiz);
     setTopic(quizItem.topic);
     setActiveTaskId(quizItem.task_id);
-    setCurrentQuestion(0);
-    setAnswers([]);
-    setSelectedAnswer(null);
-    setShowExplanation(false);
-    setState(STATES.QUIZ);
+    
+    if (quizItem.isCompleted) {
+      if (quizItem.pastAnswers) {
+        const pastAnswersObj = quizItem.pastAnswers;
+        const pastAnswersArray = Object.keys(pastAnswersObj)
+          .sort((a, b) => parseInt(a) - parseInt(b))
+          .map(k => pastAnswersObj[k]);
+        setAnswers(pastAnswersArray);
+      } else {
+        setAnswers([]);
+      }
+      setQuizScore(quizItem.score);
+      setQuizTotal(quizItem.total);
+      setState(STATES.RESULTS);
+    } else {
+      setCurrentQuestion(0);
+      setAnswers([]);
+      setQuizScore(null);
+      setQuizTotal(null);
+      setSelectedAnswer(null);
+      setShowExplanation(false);
+      setState(STATES.QUIZ);
+    }
   };
 
 
@@ -121,11 +163,14 @@ export default function StudentQuiz() {
     setSelectedAnswer(optionKey);
     setShowExplanation(true);
     const question = quizData.questions[currentQuestion];
+    const correctAnsKey = question.correct_answer ? question.correct_answer.trim() : "";
     setAnswers(prev => [...prev, {
       question: question.question,
       selected: optionKey,
-      correct: question.correct_answer,
-      isCorrect: optionKey === question.correct_answer,
+      selectedText: question.options[optionKey],
+      correct: correctAnsKey,
+      correctText: question.options[correctAnsKey],
+      isCorrect: optionKey === correctAnsKey,
     }]);
   };
 
@@ -160,6 +205,9 @@ export default function StudentQuiz() {
           } catch (e) {
             toast.error("Failed to save quiz result");
           }
+      } else {
+        setQuizScore(answers.filter((a, i) => a.isCorrect).length);
+        setQuizTotal(quizData.questions.length);
       }
       setState(STATES.RESULTS);
     }
@@ -170,15 +218,20 @@ export default function StudentQuiz() {
     setQuizData(null);
     setCurrentQuestion(0);
     setAnswers([]);
+    setQuizScore(null);
+    setQuizTotal(null);
     setSelectedAnswer(null);
     setShowExplanation(false);
     setActiveTaskId(null);
     setTopic('');
+    setAnimatedOffset(2 * Math.PI * 60);
   };
 
   const retryQuiz = () => {
     setCurrentQuestion(0);
     setAnswers([]);
+    setQuizScore(null);
+    setQuizTotal(null);
     setSelectedAnswer(null);
     setShowExplanation(false);
     setState(STATES.QUIZ);
@@ -459,8 +512,9 @@ export default function StudentQuiz() {
 
   // ── RESULTS SCREEN ──────────────────────────────────────────
   if (state === STATES.RESULTS) {
-    const correctCount = answers.filter(a => a.isCorrect).length;
-    const percentage = Math.round((correctCount / answers.length) * 100);
+    const correctCount = quizScore !== null ? quizScore : answers.filter(a => a.isCorrect).length;
+    const totalCount = quizTotal !== null ? quizTotal : answers.length;
+    const percentage = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0;
     const circumference = 2 * Math.PI * 60;
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
@@ -490,7 +544,7 @@ export default function StudentQuiz() {
                   className={gradeColor}
                   style={{
                     strokeDasharray: circumference,
-                    strokeDashoffset: strokeDashoffset,
+                    strokeDashoffset: animatedOffset,
                     transition: 'stroke-dashoffset 1.5s cubic-bezier(0.16, 1, 0.3, 1)',
                   }}
                 />
@@ -504,7 +558,7 @@ export default function StudentQuiz() {
             <div className="flex items-center justify-center gap-2 mb-2">
               <Trophy size={20} className={gradeColor} />
               <h2 className="text-xl font-bold text-surface-900 dark:text-surface-100">
-                {correctCount} / {answers.length} Correct
+                {correctCount} / {totalCount} Correct
               </h2>
             </div>
             <p className="text-sm text-surface-400 max-w-md mx-auto">{gradeMessage}</p>
@@ -554,10 +608,15 @@ export default function StudentQuiz() {
                       <p className="text-sm font-medium text-surface-900 dark:text-surface-100 mb-1">
                         {i + 1}. {a.question}
                       </p>
-                      {!a.isCorrect && (
-                        <p className="text-xs text-surface-400">
-                          Your answer: <span className="text-danger-500 font-medium">{a.selected}</span> •
-                          Correct: <span className="text-accent-500 font-medium">{a.correct}</span>
+                      {!a.isCorrect ? (
+                        <p className="text-xs text-surface-400 mt-2">
+                          Your answer: <span className="text-danger-500 font-medium bg-danger-50 dark:bg-danger-900/30 px-2 py-0.5 rounded">{a.selectedText || a.selected}</span>
+                          <br className="my-1"/>
+                          Correct answer: <span className="text-accent-500 font-medium bg-accent-50 dark:bg-accent-900/30 px-2 py-0.5 rounded">{a.correctText || a.correct}</span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-surface-400 mt-2">
+                          Correct answer: <span className="text-accent-500 font-medium bg-accent-50 dark:bg-accent-900/30 px-2 py-0.5 rounded">{a.correctText || a.correct}</span>
                         </p>
                       )}
                     </div>

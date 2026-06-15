@@ -308,7 +308,8 @@ async def get_completed_quizzes(request: Request, student_id: str):
             completed_tasks.append({
                 "task_id": doc.get("task_id"),
                 "score": doc.get("score"),
-                "total": doc.get("total")
+                "total": doc.get("total"),
+                "answers": doc.get("answers")
             })
         return JSONResponse(status_code=200, content={"completed_tasks": completed_tasks})
     except Exception as e:

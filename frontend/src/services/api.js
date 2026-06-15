@@ -7,9 +7,16 @@ class ApiClient {
 
   async request(endpoint, options = {}) {
     const url = `${this.baseUrl}${endpoint}`;
+    
+    const headers = { 'Content-Type': 'application/json', ...options.headers };
+    const token = localStorage.getItem('raaed_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const config = {
-      headers: { 'Content-Type': 'application/json', ...options.headers },
       ...options,
+      headers,
     };
 
     if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {

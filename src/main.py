@@ -8,7 +8,7 @@ os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import base, data, nlp, agent, admin
+from routes import base, data, nlp, agent, admin, auth
 from motor.motor_asyncio import AsyncIOMotorClient
 from helpers.config import get_settings
 from helpers.db_init import init_database
@@ -124,4 +124,5 @@ app.include_router(data.data_router)
 app.include_router(nlp.nlp_router)
 app.include_router(agent.agent_router)
 app.include_router(admin.admin_router)
+app.include_router(auth.auth_router)
 

@@ -1,8 +1,14 @@
 # ==========================================
 # Raaed FastAPI Backend - Production Dockerfile
 # ==========================================
+# OPTIMIZED for fast rebuilds using Docker layer caching.
+#
+# Build:  docker build -t raaed-backend .
+#
+# LAYER ORDER MATTERS! Heavy downloads come first (cached forever),
+# frequently-changing source code comes LAST.
+# ==========================================
 
-# Use official lightweight Python image (Bookworm = Debian 12 Stable)
 FROM python:3.10-slim-bookworm
 
 # Set environment variables
@@ -14,15 +20,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-# ── ROOT CAUSE FIX: Force HTTPS for all apt sources ─────────────────────
-# Many ISPs intercept plain HTTP traffic via transparent proxies and return
-# 403 Forbidden. Switching to HTTPS bypasses this completely.
+# ── Layer 1: HTTPS apt sources (never changes) ─────────────────────────
 RUN echo 'deb https://deb.debian.org/debian bookworm main' > /etc/apt/sources.list && \
     echo 'deb https://deb.debian.org/debian bookworm-updates main' >> /etc/apt/sources.list && \
     echo 'deb https://deb.debian.org/debian-security bookworm-security main' >> /etc/apt/sources.list && \
     rm -f /etc/apt/sources.list.d/*
 
-# Install ca-certificates first (needed for HTTPS apt), then system deps
+# ── Layer 2: System packages (rarely changes) ──────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     build-essential \
@@ -37,42 +41,33 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PyTorch CPU first to avoid heavy GPU weights in cloud deployment
+# ── Layer 3: PyTorch CPU (1.2GB - changes only on version bump) ────────
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-# Install PaddlePaddle & PaddleOCR
+# ── Layer 4: PaddlePaddle & PaddleOCR (900MB - changes rarely) ─────────
 RUN pip install paddlepaddle>=2.6.0 paddleocr>=2.8.0
 
-# Pin critical dependencies to prevent version conflicts (numpy < 2, tokenizers)
+# ── Layer 5: Pin critical deps (changes rarely) ────────────────────────
 RUN pip install "numpy>=1.24.0,<2.0.0" "tokenizers>=0.19.0,<0.30.0"
 
-# Copy requirements.txt and install remaining dependencies
+# ── Layer 6: Python requirements (changes when requirements.txt edits) ─
+# IMPORTANT: Copy ONLY requirements.txt here (not before PyTorch!)
+# This way, editing requirements.txt does NOT re-download PyTorch/Paddle.
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# ── Pre-download HuggingFace models (SEPARATE steps for Docker cache) ───
+# ── Layer 7-8: Pre-download HuggingFace models (~3GB total) ────────────
+# These NEVER change unless you switch to a different model.
 COPY download_models.py .
-
-# Step A: Embedding model (~1.2 GB)
 RUN python download_models.py embedding
-
-# Step B: Reranker model (~1.1 GB)
 RUN python download_models.py reranker
-
-# Clean up download script
 RUN rm download_models.py
 
-# Copy the source code
+# ── Layer 9: Source code (changes MOST often → LAST!) ───────────────────
+# Only THIS layer rebuilds when you edit your Python code.
 COPY src /app/src
-
-# Create local data directories (mount points for Azure Files)
 RUN mkdir -p /app/src/assets/files /app/src/assets/database
 
-# Set pythonpath so routes and helpers can be imported correctly
 ENV PYTHONPATH=/app/src
-
-# Expose backend port
 EXPOSE 5000
-
-# Run FastAPI application
 CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "5000"]

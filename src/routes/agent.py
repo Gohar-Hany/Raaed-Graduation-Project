@@ -238,11 +238,11 @@ async def task_webhook(request: Request, payload: TaskWebhookRequest, background
 
         # If it is a Quiz, trigger background generation
         if payload.task_type.lower() == "quiz":
-            topic = payload.notes or payload.description or "General Topic"
-            # Extract num_questions from notes (e.g., "10 MCQs", "20 questions", "15 سؤال")
+            topic = payload.description or payload.notes or "General Topic"
+            # Extract num_questions from notes or description
             num_questions = 5  # default
             notes_text = (payload.notes or "") + " " + (payload.description or "")
-            num_match = re.search(r'(\d+)\s*(?:MCQs?|questions?|سؤال|أسئلة)', notes_text, re.IGNORECASE)
+            num_match = re.search(r'(\d+)', notes_text)
             if num_match:
                 num_questions = int(num_match.group(1))
             background_tasks.add_task(

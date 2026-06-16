@@ -1,0 +1,33 @@
+Statistics, Machine Learning, and Deep Learning Basics
+
+1. Introduction
+This document covers fundamental concepts across statistics and artificial intelligence, including Mean, Median, Machine Learning, and Deep Learning.
+
+2. The Mean (Average)
+The mean, commonly known as the average, is calculated by adding all the numbers in a data set and then dividing by the total number of values in the set.
+- Formula: Mean = (Sum of all values) / (Total number of values)
+- Example: For the data set [2, 4, 6, 8, 10], the sum is 30. There are 5 values. The mean is 30 / 5 = 6.
+- Pros and Cons: The mean is very useful but it is highly affected by outliers (extremely high or low values).
+
+3. The Median
+The median is the middle value in a data set when the values are arranged in ascending (or descending) order.
+- If the data set has an odd number of values, the median is the exact middle number.
+- If the data set has an even number of values, the median is the average of the two middle numbers.
+- Example (Odd): For [1, 3, 3, 6, 7, 8, 9], the median is 6.
+- Example (Even): For [1, 2, 3, 4, 5, 6, 8, 9], the median is (4 + 5) / 2 = 4.5.
+- Pros and Cons: The median is not affected by outliers, making it a better measure of central tendency for skewed distributions.
+
+4. Machine Learning (ML)
+Machine Learning is a subset of Artificial Intelligence (AI) that focuses on building systems that learn from data. Instead of being explicitly programmed to perform a task, ML algorithms use historical data as input to predict new output values.
+- Supervised Learning: The algorithm is trained on a labeled dataset (e.g., predicting house prices based on size).
+- Unsupervised Learning: The algorithm is given data without explicit instructions on what to do with it (e.g., clustering customers into groups).
+- Common Algorithms: Linear Regression, Decision Trees, and Support Vector Machines.
+
+5. Deep Learning (DL)
+Deep Learning is a specialized subset of Machine Learning based on artificial neural networks with multiple layers (hence "deep"). These neural networks attempt to simulate the behavior of the human brain to "learn" from large amounts of data.
+- Neural Networks: Composed of an input layer, multiple hidden layers, and an output layer.
+- Applications: Image recognition, natural language processing (NLP), speech recognition, and autonomous driving.
+- Requirements: Deep learning requires massive amounts of data and significant computational power (like GPUs) to train effectively compared to traditional ML.
+
+6. Conclusion
+Both statistics and machine learning are essential pillars of modern data science. While statistics provides the foundational mathematics (like mean and median) for understanding data, machine learning and deep learning provide the tools to make complex predictions and automate decision-making.

@@ -63,7 +63,7 @@ sequenceDiagram
 
 ## 🚀 Setup & Installation (From Scratch)
 
-Follow these steps sequentially to set up and run both servers locally.
+Follow these steps sequentially to set up and run both servers locally..
 
 ### 1. Prerequisites
 - **Python**: Version 3.10 or 3.11 is required.

@@ -157,6 +157,7 @@ def run_admin_crew(
                 "task_type": task_type,
                 "description": description,
                 "priority": priority,
+                "status": "Pending",
                 "notes": notes,
                 "created_at": created_at_str,
                 "is_active": True
@@ -266,7 +267,11 @@ Please perform the following instructions:
         return {
             "task_id": task_info["task_id"],
             "status": "created",
-            "message": response_text
+            "message": response_text,
+            "task_type": task_info["task_type"],
+            "course": task_info["course"],
+            "notes": task_info["notes"],
+            "description": task_info["description"]
         }
     else:
         return {

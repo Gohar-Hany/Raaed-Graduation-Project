@@ -60,4 +60,6 @@ src/assets/google_token.json
 ~$*
 
 # Gemini
-.gemini/
+.gemini/
+
+logs

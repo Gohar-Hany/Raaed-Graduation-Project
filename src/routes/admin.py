@@ -27,7 +27,7 @@ admin_router = APIRouter(
     status_code=status.HTTP_201_CREATED,
     summary="Create a new task and queue it in Google Sheets memory",
 )
-async def create_task(request: Request, payload: TaskCreateRequest):
+async def create_task(request: Request, payload: TaskCreateRequest, background_tasks: BackgroundTasks):
     """
     Receives a natural language request, interacts with the Admin Crew,
     and returns the agent's text response and task registration status.
@@ -57,6 +57,29 @@ async def create_task(request: Request, payload: TaskCreateRequest):
         # 4. Save messages to session history
         await session_manager.add_message(db_client, session_id, "user", payload.request)
         await session_manager.add_message(db_client, session_id, "assistant", message_text)
+        
+        # 5. Fallback background quiz generation trigger (local safety net if webhook has loopback issues)
+        if status_msg == "created" and result.get("task_type", "").lower() == "quiz":
+            project_id = result.get("course", "general")
+            notes = result.get("notes") or ""
+            description = result.get("description") or ""
+            topic = notes or description or "General Topic"
+            
+            num_questions = 5  # default
+            notes_text = notes + " " + description
+            num_match = re.search(r'(\d+)\s*(?:MCQs?|questions?|سؤال|أسئلة)', notes_text, re.IGNORECASE)
+            if num_match:
+                num_questions = int(num_match.group(1))
+                
+            background_tasks.add_task(
+                generate_and_save_quiz_background,
+                request.app,
+                project_id,
+                task_id,
+                topic,
+                num_questions
+            )
+            logger.info(f"[Admin Route] Enqueued background quiz generation for task {task_id}")
         
         return TaskCreateResponse(
             task_id=task_id,

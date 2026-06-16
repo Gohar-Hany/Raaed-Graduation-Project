@@ -37,9 +37,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements.txt first to leverage Docker cache
-COPY requirements.txt .
-
 # Install PyTorch CPU first to avoid heavy GPU weights in cloud deployment
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
@@ -49,7 +46,8 @@ RUN pip install paddlepaddle>=2.6.0 paddleocr>=2.8.0
 # Pin critical dependencies to prevent version conflicts (numpy < 2, tokenizers)
 RUN pip install "numpy>=1.24.0,<2.0.0" "tokenizers>=0.19.0,<0.30.0"
 
-# Install remaining dependencies
+# Copy requirements.txt and install remaining dependencies
+COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 # ── Pre-download HuggingFace models (SEPARATE steps for Docker cache) ───

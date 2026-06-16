@@ -1,6 +1,0 @@
-Logo
-
-## Digilians
-
-
-Icon

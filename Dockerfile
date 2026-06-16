@@ -53,17 +53,25 @@ RUN pip install "numpy>=1.24.0,<2.0.0" "tokenizers>=0.19.0,<0.30.0"
 RUN pip install -r requirements.txt
 
 # ── Pre-download HuggingFace models (SEPARATE steps for Docker cache) ───
-# Step A: Embedding model (~1.2 GB) - already cached from previous build
-RUN python -c "from sentence_transformers import SentenceTransformer; print('Downloading embedding model...'); SentenceTransformer('Alibaba-NLP/gte-multilingual-base', trust_remote_code=True); print('Embedding model OK!')"
+COPY download_models.py .
 
-# Step B: Reranker model (~1.1 GB) - separate step so Step A stays cached
-RUN python -c "from sentence_transformers import CrossEncoder; print('Downloading reranker model...'); CrossEncoder('BAAI/bge-reranker-v2-m3'); print('Reranker model OK!')"
+# Step A: Embedding model (~1.2 GB)
+RUN python download_models.py embedding
+
+# Step B: Reranker model (~1.1 GB)
+RUN python download_models.py reranker
+
+# Clean up download script
+RUN rm download_models.py
 
 # Copy the source code
 COPY src /app/src
 
 # Create local data directories (mount points for Azure Files)
 RUN mkdir -p /app/src/assets/files /app/src/assets/database
+
+# Set pythonpath so routes and helpers can be imported correctly
+ENV PYTHONPATH=/app/src
 
 # Expose backend port
 EXPOSE 5000

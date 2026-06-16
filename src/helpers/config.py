@@ -46,4 +46,9 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 def get_settings():
-    return Settings()
+    settings = Settings()
+    # Strip outer quotes from all string settings to avoid Docker --env-file issues
+    for key, value in list(settings.__dict__.items()):
+        if isinstance(value, str):
+            setattr(settings, key, value.strip("'\""))
+    return settings

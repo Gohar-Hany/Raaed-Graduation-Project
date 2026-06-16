@@ -264,15 +264,15 @@ sequenceDiagram
 
     User->>API: POST /api/v1/data/process/{project_id}
     API->>PC: get_file_content(file_id)
-    PC->>EXT: run_merged_pipeline(pdf_path)
+    PC->>EXT: run_unified_pipeline(pdf_path)
 
-    Note over EXT: Step 1: Docling extracts structure<br/>(headings, text, tables, code)
-    Note over EXT: Step 2: Logo detection & removal
-    Note over EXT: Step 3: Content quality per page
-    Note over EXT: Step 4: OCR fallback for poor pages
-    Note over EXT: Step 5: Image→text replacement
+    Note over EXT: Step 1: Docling parses PDF structure<br/>(headings, text, tables, code)
+    Note over EXT: Step 2: Native VLM visual description<br/>(SmolVLM-256M on GPU, auto-disabled on CPU)
+    Note over EXT: Step 3: EasyOCR text extraction for scanned PDF pages
+    Note over EXT: Step 4: CPU/GPU hardware auto-detection fallback
+    Note over EXT: Step 5: Image metadata placeholder replacement
 
-    EXT-->>PC: Cleaned Markdown text
+    EXT-->>PC: Cleaned Markdown & JSON tuple
     PC->>CHK: chunk_documents(markdown)
 
     Note over CHK: 1. Clean slide artifacts<br/>2. Split on headings<br/>3. Merge small sections<br/>4. Split oversized sections
@@ -432,23 +432,26 @@ sequenceDiagram
 
 ### 5.1 PDF Extraction Pipeline
 
-**Location:** `src/extraction/`
+**Location:** `src/controllers/_extraction/`
 
-The extraction pipeline converts uploaded PDFs into clean Markdown text. It uses a hybrid approach combining **Docling** (for structural extraction) with **PyMuPDF + PaddleOCR** (as a fallback for image-heavy pages).
+The extraction pipeline converts uploaded PDFs into clean structural Markdown and JSON. It has been refactored into a single, unified, hardware-aware pipeline designed for optimal performance on both CPU and GPU:
 
 | File | Purpose |
 |---|---|
-| `docling_pipeline.py` | Primary extraction via Docling library — extracts headings, sections, tables, code blocks, and math |
-| `local_pdf_pipeline.py` | Fallback pipeline using PyMuPDF rendering + PaddleOCR + optional Ollama Vision |
-| `merged_pipeline.py` | **Orchestrator** that runs Docling first, detects logos, assesses page quality, and applies OCR fallback |
+| `unified_pipeline.py` | Orchestrates the entire extraction process: layouts, OCR, tables, formulas, and VLM descriptions. |
+| `__init__.py` | Exports the main entry point: `run_unified_pipeline`. |
+
+**Hardware-Aware Execution Model:**
+- **On GPU (Production/T4 Server)**: Uses CUDA-accelerated Docling layout parser, EasyOCR with GPU support, and dynamic `SmolVLM-256M-Instruct` vision-language model for deep image and diagram descriptions.
+- **On CPU (Local Developer Environment)**: Detects CUDA unavailability, switches to CPU fallback for standard Docling and EasyOCR, and **automatically disables VLM descriptions** to prevent severe CPU processing bottleneck and memory freezes.
 
 **Pipeline Steps:**
-1. **Docling Extraction** → Structural Markdown (headings, tables, code, math)
-2. **Logo Detection** → Identify small, repeated base64 images → Remove
-3. **Image Content Extraction** → Replace remaining images with OCR/vision text
-4. **Content Quality Assessment** → Find pages with <30 characters of text
-5. **OCR Fallback** → Re-extract poor pages via PyMuPDF + PaddleOCR
-6. **Cleanup** → Remove excessive blank lines, empty sections
+1. **Caching initialization**: Uses cache decorator (`@lru_cache`) on the DocumentConverter to avoid reloading heavy deep-learning model weights on repeated requests.
+2. **Page-chunked Processing**: Large PDFs (>20 pages) are automatically split and processed in chunks to keep memory usage minimal and prevent server timeout errors.
+3. **Docling Structure Extraction**: Extracts semantic hierarchy, paragraphs, headings, lists, table structures, and code formulas.
+4. **OCR Fallback**: Invokes EasyOCR to read text out of scanned PDF pages or embedded images.
+5. **VLM Picture Description (GPU only)**: Feeds diagrams, flowcharts, and math pictures to the SmolVLM model to get markdown-grounded text descriptions.
+6. **Token/Whitespace Cleanup**: Removes base64 images and excessive spacing to optimize tokens for subsequent RAG embedding.
 
 ---
 

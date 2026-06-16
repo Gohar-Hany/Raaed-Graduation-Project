@@ -48,6 +48,7 @@ tiktoken>=0.7.0
 pymupdf==1.24.3
 docling>=2.90.0
 docling-core>=2.0.0
+pypdf
 pillow>=10.0.0
 
 # ── OCR Engines ─────────────────────────────────────────────────────

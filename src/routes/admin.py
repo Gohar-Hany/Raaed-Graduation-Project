@@ -27,33 +27,72 @@ admin_router = APIRouter(
     status_code=status.HTTP_201_CREATED,
     summary="Create a new task and queue it in Google Sheets memory",
 )
-async def create_task(request: Request, payload: TaskCreateRequest):
+async def create_task(request: Request, payload: TaskCreateRequest, background_tasks: BackgroundTasks):
     """
-    Receives a natural language request, extracts task parameters using a CrewAI Agent,
-    writes the structured task record to Google Sheets, and returns the generated task ID.
+    Receives a natural language request, interacts with the Admin Crew,
+    and returns the agent's text response and task registration status.
     """
-    logger.info(f"[Admin] Received task creation request: '{payload.request}'")
+    logger.info(f"[Admin] Received message: '{payload.request}', session_id: {payload.session_id}")
+    db_client = request.app.db_client
+    
+    # 1. Get or create session
+    from agent import session_manager
+    session_id = await session_manager.get_or_create_session(db_client, payload.session_id, "admin")
+    
+    # 2. Retrieve session history for conversation context
+    history = await session_manager.get_history(db_client, session_id)
+    
+    # 3. Execute the Admin Agent Crew
     try:
         result = await run_in_threadpool(
             run_admin_crew,
             user_request=payload.request,
-            webhook_url=getattr(
-                request.app, "_assistant_webhook_url",
-                "http://localhost:8000/api/v1/agent/webhook/task"
-            ),
+            chat_history=history
         )
 
-        logger.info(f"[Admin] Task created: {result['task_id']}")
-
+        task_id = result.get("task_id", "NONE")
+        status_msg = result.get("status", "chat")
+        message_text = result.get("message", "")
+        
+        # 4. Save messages to session history
+        await session_manager.add_message(db_client, session_id, "user", payload.request)
+        await session_manager.add_message(db_client, session_id, "assistant", message_text)
+        
+        # 5. Fallback background quiz generation trigger (local safety net if webhook has loopback issues)
+        if status_msg == "created" and result.get("task_type", "").lower() == "quiz":
+            project_id = result.get("course", "general")
+            notes = result.get("notes") or ""
+            description = result.get("description") or ""
+            topic = notes or description or "General Topic"
+            
+            num_questions = 5  # default
+            notes_text = notes + " " + description
+            num_match = re.search(r'(\d+)\s*(?:MCQs?|questions?|سؤال|أسئلة)', notes_text, re.IGNORECASE)
+            if num_match:
+                num_questions = int(num_match.group(1))
+                
+            background_tasks.add_task(
+                generate_and_save_quiz_background,
+                request.app,
+                project_id,
+                task_id,
+                topic,
+                num_questions
+            )
+            logger.info(f"[Admin Route] Enqueued background quiz generation for task {task_id}")
+        
         return TaskCreateResponse(
-            task_id=result["task_id"],
-            status="created",
+            task_id=task_id,
+            status=status_msg,
+            message=message_text,
+            session_id=session_id
         )
+            
     except Exception as e:
-        logger.exception("[Admin] Error during task processing")
+        logger.exception("[Admin] Error during request processing")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": f"Failed to process task: {str(e)}"},
+            content={"detail": f"Failed to process request: {str(e)}"},
         )
 
 

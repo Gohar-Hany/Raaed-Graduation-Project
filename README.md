@@ -148,6 +148,25 @@ Push the database chunks to Qdrant to generate embeddings:
 wsl curl -X POST http://127.0.0.1:8000/api/v1/nlp/index/push/testproject1 -H "Content-Type: application/json" -d '{"do_reset": true}'
 ```
 
+### 6. Testing & E2E Validation
+Raaed features a comprehensive end-to-end (E2E) API test suite to verify health, upload, extraction, vector indexing, semantic search, RAG answers, and agent systems.
+
+To run the automated tests:
+1. Ensure the core FastAPI server is running on port 8000.
+2. Run the test script from the `src` directory:
+   ```bash
+   cd src
+   python tests/test_api_e2e.py
+   ```
+The test suite covers:
+- **Group 1**: Health check & route fallback checks
+- **Group 2**: PDF & Text upload endpoint validation
+- **Group 3**: PDF extraction (executing our unified pipeline)
+- **Group 4**: Vector indexing into Qdrant/Chroma DB
+- **Group 5**: BGE-reranked semantic search validation (validates empty and invalid search inputs)
+- **Group 6**: Grounded RAG answer generation quality
+- **Group 7**: Study Assistant agent orchestration (CrewAI chat sessions, quiz generation, guidelines webhook, and student score submission)
+
 ---
 
 ## 📡 Running the Applications

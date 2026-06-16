@@ -28,9 +28,14 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-
-from pypdf import PdfReader
-
+try:
+    from pypdf import PdfReader
+except ImportError:
+    import subprocess
+    import sys
+    print("[Runtime Setup] Installing missing dependency: pypdf...", flush=True)
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "pypdf"])
+    from pypdf import PdfReader
 from docling.datamodel.base_models import ConversionStatus, InputFormat
 from docling.datamodel.pipeline_options import (
     AcceleratorOptions,

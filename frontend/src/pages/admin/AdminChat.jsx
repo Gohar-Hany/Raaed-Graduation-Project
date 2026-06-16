@@ -7,6 +7,7 @@ export default function AdminChat() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sessionTasks, setSessionTasks] = useState([]);
+  const [sessionId, setSessionId] = useState(null);
   const toast = useToast();
 
   const handleSend = async (message) => {
@@ -15,22 +16,26 @@ export default function AdminChat() {
     setLoading(true);
 
     try {
-      const result = await createTask(message);
-      const botMessage = `Task created successfully.\n\nTask ID: ${result.task_id}\nStatus: ${result.status}\n\nThe task has been queued and sent to the AI assistant via webhook.`;
+      const result = await createTask(message, sessionId);
+      if (result.session_id) {
+        setSessionId(result.session_id);
+      }
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: botMessage,
+        content: result.message,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }]);
-      setSessionTasks(prev => [...prev, result]);
-      toast.success(`Task ${result.task_id} created successfully`);
+      if (result.status === 'created') {
+        setSessionTasks(prev => [...prev, result]);
+        toast.success(`Task ${result.task_id} created successfully`);
+      }
     } catch (err) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Error: ${err.message}\n\nPlease make sure the backend server is running on port 8000.`,
+        content: `Error: ${err.message}\n\nPlease make sure the backend server is running.`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }]);
-      toast.error('Failed to create task');
+      toast.error('Failed to process message');
     } finally {
       setLoading(false);
     }
@@ -39,6 +44,7 @@ export default function AdminChat() {
   const handleClear = () => {
     setMessages([]);
     setSessionTasks([]);
+    setSessionId(null);
   };
 
   return (

@@ -149,8 +149,8 @@ export const getCompletedQuizzes = (studentId) =>
   api.get(`/agent/quizzes/completed/${studentId}`);
 
 // Admin services
-export const createTask = (request) =>
-  api.post('/admin/task/create', { request });
+export const createTask = (request, sessionId = null) =>
+  api.post('/admin/task/create', { request, session_id: sessionId });
 
 export const adminHealthCheck = () =>
   api.get('/admin/health');

@@ -2,8 +2,7 @@
 Admin Agent Crew Runner — Processes instructor task creation requests.
 
 Uses CrewAI to analyze natural language educational requests, extract task
-parameters, persist them to Google Sheets, and notify the assistant agent
-via webhook.
+parameters, and notify the assistant agent via webhook.
 """
 
 import os
@@ -11,13 +10,13 @@ import re
 import json
 import logging
 import datetime
+import requests
 
 from crewai import Agent, Task, Crew, Process
+from crewai.tools import tool
 from helpers.config import get_settings
 from .prompts import ADMIN_AGENT_SYSTEM_PROMPT
 from .crew_runner import OpenRouterLLM
-
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -25,30 +24,6 @@ logger = logging.getLogger("uvicorn.error")
 os.environ["OTEL_SDK_DISABLED"] = "true"
 os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
 
-
-class TaskRecordModel(BaseModel):
-    """Pydantic schema for structured task records output by the Admin Agent."""
-
-    task_type: str = Field(
-        description="Must be one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam, Guideline"
-    )
-    description: str = Field(description="Clear, concise explanation of the task")
-    course: str = Field(
-        description="The course or subject name (e.g. Machine Learning). Default to 'General'"
-    )
-    priority: str = Field(description="Priority level (High, Medium, Low)")
-    assigned_agent: str = Field(
-        default="TA",
-        description="The agent assigned to handle the task (always 'TA')",
-    )
-    status: str = Field(
-        default="Pending",
-        description="The initial status (always 'Pending')",
-    )
-    notes: str = Field(
-        default="",
-        description="Any extracted parameters, MCQ counts, chapters, formatting, etc.",
-    )
 
 def _get_admin_llm():
     """Create the LLM instance for the admin agent."""
@@ -70,24 +45,18 @@ def _get_admin_llm():
         temperature=0.1,
     )
 
+
 def run_admin_crew(
     user_request: str,
-    webhook_url: str = None,
+    chat_history: list = None,
 ) -> dict:
     """
     Execute the Admin Crew to process a user request.
 
     Workflow:
-        1. CrewAI agent analyzes the natural language request
-        2. Extracts structured task parameters (type, course, priority, etc.)
-        3. Sends a webhook notification to the assistant agent to save to MongoDB
-
-    Args:
-        user_request: Natural language task description
-        webhook_url: URL to notify the assistant agent about the new task
-
-    Returns:
-        dict with task_id, status, and crew_output
+        1. CrewAI agent analyzes the natural language request in context of chat history.
+        2. If confirmed, uses the 'Register Task Guideline' tool to write to DB and notify students' AI.
+        3. Returns the status, task_id, and response message.
     """
     settings = get_settings()
     llm = _get_admin_llm()
@@ -97,7 +66,7 @@ def run_admin_crew(
     os.environ["OPENAI_API_BASE"] = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
     os.environ["OPENAI_BASE_URL"] = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
 
-    # Query projects and their uploaded assets to build a content-aware mapping
+    # Query projects and their uploaded assets to build a content-aware mapping for LLM course-mapping
     project_mapping_info = []
     existing_courses = []
     try:
@@ -128,166 +97,180 @@ def run_admin_crew(
         existing_courses = ["General"]
     courses_list_str = ", ".join(existing_courses)
 
+    # Accumulator to collect task registration details from the tool execution
+    created_tasks = []
+
+    @tool("Register Task Guideline")
+    def register_task_guideline(
+        task_type: str,
+        description: str,
+        course: str,
+        priority: str,
+        notes: str = ""
+    ) -> str:
+        """
+        Registers a task or guideline in the system. Use this tool ONLY when the instructor
+        has explicitly confirmed they want to create/save the task.
+
+        Args:
+            task_type: Must be one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam, Guideline
+            description: A clear, concise explanation of the task
+            course: The course ID (e.g., 'testproject1' or '1') or 'General'
+            priority: Priority level (High, Medium, Low)
+            notes: Any extra parameters (e.g. number of MCQs, chapter numbers)
+        """
+        try:
+            from pymongo import MongoClient
+            client = MongoClient(settings.MONGODB_URL)
+            db = client[settings.MONGODB_DATABASE or "raad-rag"]
+            
+            # 1. Generate task ID
+            guidelines = list(db["instructor_guidelines"].find({}))
+            max_num = 0
+            for g in guidelines:
+                t_match = re.search(r"T(\d+)", g.get("task_id", ""))
+                if t_match:
+                    num = int(t_match.group(1))
+                    if num > max_num:
+                        max_num = num
+            task_id = f"T{max_num + 1:03d}"
+            
+            # 2. Normalize course/project_id
+            course_clean = course.strip()
+            project_id = re.sub(r'[^a-zA-Z0-9]', '', course_clean.lower())
+            if not project_id:
+                project_id = "general"
+                
+            # Verify project exists in DB
+            project = db["projects"].find_one({"project_id": project_id})
+            if not project and project_id != "general":
+                # Fallback to the first available project
+                existing_p = db["projects"].find_one({})
+                if existing_p:
+                    project_id = existing_p["project_id"]
+                    
+            # 3. Save to MongoDB
+            created_at_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            guideline_doc = {
+                "project_id": project_id,
+                "task_id": task_id,
+                "task_type": task_type,
+                "description": description,
+                "priority": priority,
+                "notes": notes,
+                "created_at": created_at_str,
+                "is_active": True
+            }
+            db["instructor_guidelines"].insert_one(guideline_doc)
+            client.close()
+            
+            # 4. Trigger Webhook to notify students' assistant agent
+            webhook_url = getattr(settings, "ASSISTANT_WEBHOOK_URL", None)
+            if not webhook_url:
+                webhook_url = "http://localhost:5000/api/v1/agent/webhook/task"
+                
+            payload = {
+                "task_id": task_id,
+                "description": description,
+                "course": project_id,
+                "task_type": task_type,
+                "priority": priority,
+                "notes": notes,
+                "created_at": created_at_str,
+                "is_active": True
+            }
+            
+            try:
+                res = requests.post(webhook_url, json=payload, timeout=5)
+                webhook_status = f"Webhook success (HTTP {res.status_code})"
+            except Exception as webhook_err:
+                webhook_status = f"Webhook failed: {str(webhook_err)}"
+                
+            task_info = {
+                "task_id": task_id,
+                "status": "created",
+                "task_type": task_type,
+                "course": project_id,
+                "priority": priority,
+                "description": description,
+                "notes": notes
+            }
+            created_tasks.append(task_info)
+            
+            return f"SUCCESS: Task {task_id} registered successfully in database. {webhook_status}. Make sure to report the generated Task ID {task_id} to the instructor in your final message."
+            
+        except Exception as e:
+            logger.error(f"[Register Tool] Error: {e}")
+            return f"ERROR: Failed to register task: {str(e)}"
+
     # Define the Admin Agent
     admin_agent = Agent(
         role="Admin Agent / Request Analyzer",
         goal=(
-            "Analyze natural language educational requests, classify their task types, "
-            "extract details, and format them into a structured task record."
+            "Analyze natural language requests from the instructor, discuss details, "
+            "and call the Register Task Guideline tool ONLY after user confirmation."
         ),
         backstory=ADMIN_AGENT_SYSTEM_PROMPT,
-        tools=[],
+        tools=[register_task_guideline],
         llm=llm,
         verbose=True,
         allow_delegation=False,
+        max_iter=4
     )
 
-    # Task 1: Analyze Request
-    analyze_task = Task(
-        description=f"""Analyze the user's natural language request: "{user_request}".
-Identify the following information:
-1. Task Type: Classify into one of: Quiz, Assignment, Flashcards, Study Guide, Summary, Exam, Guideline. 
-CRITICAL RULE: ONLY classify as 'Quiz' if the user EXPLICITLY asks for a quiz, test, or exam. If they just say "focus on X" or "tell students to study X", you MUST classify it as 'Guideline'. If not clear, default to Guideline.
-2. Course: Match the request to the most relevant existing course based on its name or the files it contains. Here is the list of courses and their materials:
+    # Format chat history
+    formatted_history = ""
+    if chat_history:
+        for msg in chat_history:
+            role = "Instructor" if msg["role"] == "user" else "RaaedAdmin"
+            formatted_history += f"{role}: {msg['content']}\n"
+
+    # Single conversational task
+    chat_task = Task(
+        description=f"""
+You are chatting with the instructor (user).
+Here is the previous conversation history:
+{formatted_history}
+
+User's new message: "{user_request}"
+Here is the list of courses and their materials in the system:
 {mapping_str}
 
-Reasoning Rules for matching:
-- If the topic is about math, algebra, statistics, calculus, or specific math concepts like "Mean" and "Median", it MUST map to 'testproject1' because it contains 'Math_Session_1.pdf'.
-- If the topic is about machine learning, neural networks, deep learning, AI, regression, or data science, it MUST map to '1' because it contains 'ML_NO_Address.pdf' (Machine Learning).
-- Read the filenames in each course and map the request to the course containing the most relevant files.
-- Select the course ID (e.g. 'testproject1', '1', etc.) that best fits the topic. If no course fits, default to 'General' or the first available course. You MUST strictly output one of the existing course IDs: {courses_list_str}. Do not invent a new course.
-3. Description: Generate a clear, concise description of what needs to be created or communicated. Keep it clean for user display.
-4. Priority: Determine priority (High if urgent, or if it is an Exam or Quiz; Medium for Assignments; Low for Flashcards/Study Guides/Summaries, unless specified otherwise).
-5. Notes: Extract specific parameters or formatting details (e.g. "20 MCQs, Chapter 3", "5 pages long").""",
-        expected_output="A structured summary of the request details: Task Type, Course, Description, Priority, and Notes.",
+Please perform the following instructions:
+1. If the user is requesting to create a task (quiz, assignment, summary, guidelines, study guide, flashcards):
+   - Propose the details clearly (Type, Course name matching existing IDs: {courses_list_str}, Description, Priority, Notes).
+   - Ask for confirmation first. Do NOT call the 'Register Task Guideline' tool yet.
+2. If the user is confirming a task draft that you previously proposed in the history:
+   - Call the 'Register Task Guideline' tool to persist the task.
+3. If it is a greeting or general talk, respond conversationally.
+""",
+        expected_output="A conversational, helpful text response to the instructor.",
         agent=admin_agent,
-    )
-
-    # Task 2: Format Record
-    format_task = Task(
-        description="""Using the extracted details from the previous task, prepare a final record for the task.
-The task must be assigned to the "TA" agent, and its initial status must be "Pending".
-Format the final description and notes so they are clean, actionable, and ready to be stored in the database.""",
-        expected_output="A final structured representation of the task record.",
-        agent=admin_agent,
-    )
-
-    # Task 3: Output Structured JSON
-    output_task = Task(
-        description="""Compile the final task record with all fields correctly extracted.
-You MUST output it as a valid JSON object matching the requested schema:
-- task_type: Quiz, Assignment, Flashcards, Study Guide, Summary, or Exam
-- description: clear, concise description
-- course: subject name (default to 'General')
-- priority: High, Medium, Low
-- assigned_agent: 'TA'
-- status: 'Pending'
-- notes: MCQ counts, chapter numbers, etc. (default to empty string)""",
-        expected_output="A validated task record matching the TaskRecordModel schema.",
-        agent=admin_agent,
-        output_json=TaskRecordModel,
     )
 
     # Run the Crew
     admin_crew = Crew(
         agents=[admin_agent],
-        tasks=[analyze_task, format_task, output_task],
+        tasks=[chat_task],
         process=Process.sequential,
         verbose=True,
     )
 
     logger.info(f"[Admin Agent] Processing request: '{user_request}'")
-    result = admin_crew.kickoff(inputs={"user_request": user_request})
+    result = admin_crew.kickoff()
 
-    # Parse structured output and write to Google Sheets
-    task_id = "UNKNOWN"
-    write_msg = ""
+    response_text = str(result.raw)
 
-    try:
-        task_data = None
-        if result.json_dict:
-            task_data = result.json_dict
-        elif result.pydantic:
-            task_data = result.pydantic.model_dump()
-        else:
-            # Fallback string parsing
-            result_str = str(result.raw)
-            match = re.search(r"\{.*\}", result_str, re.DOTALL)
-            if match:
-                task_data = json.loads(match.group(0))
-
-        if task_data:
-            logger.info(f"[Admin Agent] Extracted task data: {task_data}")
-
-            # Generate task_id directly from MongoDB
-            logger.info("[Admin Agent] Generating task_id from MongoDB...")
-            try:
-                from pymongo import MongoClient
-                settings = get_settings()
-                client = MongoClient(settings.MONGODB_URL)
-                db = client[settings.MONGODB_DATABASE or "raad-rag"]
-                guidelines = list(db["instructor_guidelines"].find({}))
-                
-                max_num = 0
-                for g in guidelines:
-                    t_match = re.search(r"T(\d+)", g.get("task_id", ""))
-                    if t_match:
-                        num = int(t_match.group(1))
-                        if num > max_num:
-                            max_num = num
-                task_id = f"T{max_num + 1:03d}"
-                client.close()
-            except Exception as ex:
-                logger.error(f"[Admin Agent] Failed to query MongoDB for task_id: {ex}")
-                task_id = f"T{int(datetime.datetime.now().timestamp()) % 1000:03d}"
-
-            # Send webhook to assistant agent to save in MongoDB
-            webhook_success = False
-            if task_id != "UNKNOWN":
-                try:
-                    _send_webhook(task_id, task_data, webhook_url)
-                    webhook_success = True
-                except Exception as webhook_err:
-                    logger.error(f"[Admin Agent] Webhook dispatch failed: {webhook_err}")
-
-            return {
-                "task_id": task_id,
-                "status": "created" if webhook_success else "created_with_warning",
-                "crew_output": "Task registered successfully in MongoDB",
-            }
-
-    except Exception as e:
-        logger.error(f"[Admin Agent] Error in post-processing: {e}")
-
-    return {
-        "task_id": "UNKNOWN",
-        "status": "failed",
-        "crew_output": write_msg or "Failed",
-    }
-
-
-def _send_webhook(task_id: str, task_data: dict, webhook_url: str = None):
-    """Send a webhook notification to the assistant agent about a new task."""
-    if not webhook_url:
-        settings = get_settings()
-        webhook_url = getattr(settings, "ASSISTANT_WEBHOOK_URL", None)
-        if not webhook_url:
-            webhook_url = "http://localhost:5000/api/v1/agent/webhook/task"
-
-    try:
-        import requests
-
-        logger.info(f"[Admin Agent] Sending webhook to {webhook_url}...")
-        payload = {
-            "task_id": task_id,
-            "description": task_data.get("description", ""),
-            "course": task_data.get("course", "General"),
-            "task_type": task_data.get("task_type", "Quiz"),
-            "priority": task_data.get("priority", "High"),
-            "notes": task_data.get("notes", ""),
-            "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    if created_tasks:
+        task_info = created_tasks[0]
+        return {
+            "task_id": task_info["task_id"],
+            "status": "created",
+            "message": response_text
         }
-        res = requests.post(webhook_url, json=payload, timeout=5)
-        logger.info(f"[Admin Agent] Webhook response: {res.status_code}")
-    except Exception as e:
-        logger.warning(f"[Admin Agent] Webhook notification failed: {e}")
+    else:
+        return {
+            "task_id": "NONE",
+            "status": "chat",
+            "message": response_text
+        }

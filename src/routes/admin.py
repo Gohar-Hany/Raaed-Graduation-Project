@@ -29,31 +29,47 @@ admin_router = APIRouter(
 )
 async def create_task(request: Request, payload: TaskCreateRequest):
     """
-    Receives a natural language request, extracts task parameters using a CrewAI Agent,
-    writes the structured task record to Google Sheets, and returns the generated task ID.
+    Receives a natural language request, interacts with the Admin Crew,
+    and returns the agent's text response and task registration status.
     """
-    logger.info(f"[Admin] Received task creation request: '{payload.request}'")
+    logger.info(f"[Admin] Received message: '{payload.request}', session_id: {payload.session_id}")
+    db_client = request.app.db_client
+    
+    # 1. Get or create session
+    from agent import session_manager
+    session_id = await session_manager.get_or_create_session(db_client, payload.session_id, "admin")
+    
+    # 2. Retrieve session history for conversation context
+    history = await session_manager.get_history(db_client, session_id)
+    
+    # 3. Execute the Admin Agent Crew
     try:
         result = await run_in_threadpool(
             run_admin_crew,
             user_request=payload.request,
-            webhook_url=getattr(
-                request.app, "_assistant_webhook_url",
-                "http://localhost:8000/api/v1/agent/webhook/task"
-            ),
+            chat_history=history
         )
 
-        logger.info(f"[Admin] Task created: {result['task_id']}")
-
+        task_id = result.get("task_id", "NONE")
+        status_msg = result.get("status", "chat")
+        message_text = result.get("message", "")
+        
+        # 4. Save messages to session history
+        await session_manager.add_message(db_client, session_id, "user", payload.request)
+        await session_manager.add_message(db_client, session_id, "assistant", message_text)
+        
         return TaskCreateResponse(
-            task_id=result["task_id"],
-            status="created",
+            task_id=task_id,
+            status=status_msg,
+            message=message_text,
+            session_id=session_id
         )
+            
     except Exception as e:
-        logger.exception("[Admin] Error during task processing")
+        logger.exception("[Admin] Error during request processing")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": f"Failed to process task: {str(e)}"},
+            content={"detail": f"Failed to process request: {str(e)}"},
         )
 
 

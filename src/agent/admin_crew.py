@@ -53,15 +53,20 @@ class TaskRecordModel(BaseModel):
 def _get_admin_llm():
     """Create the LLM instance for the admin agent."""
     settings = get_settings()
-    api_key = settings.OPENAI_API_KEY
+    api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY
     api_url = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
     model_name = settings.GENERATION_MODEL_ID or "openai/gpt-4o-mini"
 
     if not api_key:
-        raise ValueError("OPENAI_API_KEY is not configured in settings")
+        raise ValueError("Neither OPENROUTER_API_KEY nor OPENAI_API_KEY is configured in settings")
 
     if not model_name.startswith("openrouter/"):
         model_name = f"openrouter/{model_name}"
+
+    os.environ["OPENROUTER_API_KEY"] = api_key
+    os.environ["OPENAI_API_KEY"] = api_key
+    os.environ["OPENAI_API_BASE"] = api_url
+    os.environ["OPENAI_BASE_URL"] = api_url
 
     return OpenRouterLLM(
         model=model_name,
@@ -93,7 +98,9 @@ def run_admin_crew(
     llm = _get_admin_llm()
 
     # Force environment variables for LiteLLM/Instructor
-    os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
+    api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY
+    os.environ["OPENAI_API_KEY"] = api_key
+    os.environ["OPENROUTER_API_KEY"] = api_key
     os.environ["OPENAI_API_BASE"] = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
     os.environ["OPENAI_BASE_URL"] = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
 

@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_API_URL: Optional[str] = None
+    OPENROUTER_API_KEY: Optional[str] = None
     COHERE_API_KEY: Optional[str] = None
 
     GENERATION_MODEL_ID: Optional[str] = None

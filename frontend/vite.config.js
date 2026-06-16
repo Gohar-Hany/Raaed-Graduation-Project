@@ -12,7 +12,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'https://raaed-api-erfsgehsb6ashqh7.italynorth-01.azurewebsites.net',
         changeOrigin: true,
       },
     },

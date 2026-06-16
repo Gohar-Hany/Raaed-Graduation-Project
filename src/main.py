@@ -114,7 +114,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://localhost:8000",
     ],
-    allow_origin_regex=r"https://.*\.azurestaticapps\.net",
+    allow_origin_regex=r"https://.*\.azurestaticapps\.net|https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

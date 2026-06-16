@@ -493,6 +493,153 @@ async def run_tests():
             notes=f"RAG on non-indexed project — status={r.status_code}"
         )
 
+        # ══════════════════════════════════════════════════════════════════
+        # TEST GROUP 7: STUDENT & INSTRUCTOR AGENTS
+        # ══════════════════════════════════════════════════════════════════
+        print("\n─── GROUP 7: Student & Instructor Agents ──────────────────")
+
+        # Test 7.1: Register Instructor Guideline via Webhook
+        start = time.time()
+        r = await client.post(
+            "/api/v1/agent/webhook/task",
+            json={
+                "task_id": "test_quiz_task_123",
+                "description": "Study variables and functions in Python",
+                "course": PROJECT_ID,
+                "task_type": "quiz",
+                "priority": "high",
+                "notes": "Include 5 MCQs",
+                "created_at": "2026-06-16 12:00:00"
+            }
+        )
+        elapsed = (time.time() - start) * 1000
+        body = safe_json(r)
+        passed = (
+            r.status_code == 200
+            and body.get("status") == "success"
+            and "task_id" in body
+        )
+        record_result(
+            "7.1 Register Guideline Webhook", "/api/v1/agent/webhook/task", "POST",
+            r.status_code, 200, passed, elapsed,
+            response_body=body,
+            notes="Saves instructor guideline to database"
+        )
+
+        # Test 7.2: Get Active Guidelines
+        start = time.time()
+        r = await client.get(f"/api/v1/agent/guidelines/active/{PROJECT_ID}")
+        elapsed = (time.time() - start) * 1000
+        body = safe_json(r)
+        passed = (
+            r.status_code == 200
+            and isinstance(body, list)
+            and len(body) > 0
+            and any(g.get("task_id") == "test_quiz_task_123" for g in body)
+        )
+        record_result(
+            "7.2 Get Active Guidelines", f"/api/v1/agent/guidelines/active/{PROJECT_ID}", "GET",
+            r.status_code, 200, passed, elapsed,
+            response_body={"guidelines_count": len(body) if isinstance(body, list) else 0},
+            notes="Retrieves guidelines registered for the project"
+        )
+
+        # Test 7.3: Chat with Study Assistant
+        # We send a greeting/simple chat message to avoid calling RAG/Quiz unless necessary
+        # The agent uses CrewAI and will call LLM
+        start = time.time()
+        r = await client.post(
+            f"/api/v1/agent/chat/{PROJECT_ID}",
+            json={
+                "message": "Hi Raaed, I want to learn Python.",
+                "session_id": "test_session_999"
+            }
+        )
+        elapsed = (time.time() - start) * 1000
+        body = safe_json(r)
+        passed = (
+            r.status_code == 200
+            and "response" in body
+            and "session_id" in body
+        )
+        record_result(
+            "7.3 Chat with Study Assistant", f"/api/v1/agent/chat/{PROJECT_ID}", "POST",
+            r.status_code, 200, passed, elapsed,
+            response_body={"session_id": body.get("session_id"), "response_preview": str(body.get("response", ""))[:100]},
+            notes="Tests CrewAI Orchestrator chat workflow"
+        )
+
+        # Test 7.4: Submit Quiz Result
+        start = time.time()
+        r = await client.post(
+            "/api/v1/agent/quizzes/results",
+            json={
+                "student_id": "test_student_001",
+                "task_id": "test_quiz_task_123",
+                "score": 4,
+                "total": 5,
+                "answers": {"Q1": "A", "Q2": "B", "Q3": "C", "Q4": "D"}
+            }
+        )
+        elapsed = (time.time() - start) * 1000
+        body = safe_json(r)
+        passed = (
+            r.status_code == 200
+            and body.get("status") == "success"
+        )
+        record_result(
+            "7.4 Submit Quiz Result", "/api/v1/agent/quizzes/results", "POST",
+            r.status_code, 200, passed, elapsed,
+            response_body=body,
+            notes="Saves student's quiz answers and score"
+        )
+
+        # Test 7.5: Get Completed Quizzes
+        start = time.time()
+        r = await client.get("/api/v1/agent/quizzes/completed/test_student_001")
+        elapsed = (time.time() - start) * 1000
+        body = safe_json(r)
+        passed = (
+            r.status_code == 200
+            and "completed_tasks" in body
+            and len(body.get("completed_tasks", [])) > 0
+        )
+        record_result(
+            "7.5 Get Completed Quizzes", "/api/v1/agent/quizzes/completed/test_student_001", "GET",
+            r.status_code, 200, passed, elapsed,
+            response_body=body,
+            notes="Retrieves completed quiz list for student"
+        )
+
+        # Test 7.6: Get Assigned Quizzes
+        start = time.time()
+        r = await client.get(f"/api/v1/agent/quizzes/{PROJECT_ID}")
+        elapsed = (time.time() - start) * 1000
+        body = safe_json(r)
+        passed = (r.status_code == 200 and isinstance(body, list))
+        record_result(
+            "7.6 Get Assigned Quizzes", f"/api/v1/agent/quizzes/{PROJECT_ID}", "GET",
+            r.status_code, 200, passed, elapsed,
+            response_body={"quizzes_count": len(body) if isinstance(body, list) else 0},
+            notes="Retrieves list of generated quizzes for the course"
+        )
+
+        # Test 7.7: Clear Session History
+        start = time.time()
+        r = await client.delete("/api/v1/agent/session/test_session_999")
+        elapsed = (time.time() - start) * 1000
+        body = safe_json(r)
+        passed = (
+            r.status_code == 200
+            and body.get("status") in ("cleared", "not_found")
+        )
+        record_result(
+            "7.7 Clear Session History", "/api/v1/agent/session/test_session_999", "DELETE",
+            r.status_code, 200, passed, elapsed,
+            response_body=body,
+            notes="Deletes session memory from database"
+        )
+
     # ══════════════════════════════════════════════════════════════════════
     # GENERATE REPORT
     # ══════════════════════════════════════════════════════════════════════

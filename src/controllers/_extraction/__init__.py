@@ -1,5 +1,5 @@
 # _extraction — Private PDF extraction pipeline submodule
-# Contains heavy PDF processing pipelines (Docling, PyMuPDF, Merged)
+# Contains the unified GPU-accelerated PDF processing pipeline (Docling + SmolVLM)
 # Used internally by ProcessController
 
-from .merged_pipeline import run_merged_pipeline
+from .unified_pipeline import run_unified_pipeline

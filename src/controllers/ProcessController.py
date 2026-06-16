@@ -3,7 +3,7 @@ from .ProjectController import ProjectController
 import os
 from pathlib import Path
 from models import ProcessingEnum
-from ._extraction import run_merged_pipeline
+from ._extraction import run_unified_pipeline
 
 class CustomDocument:
     def __init__(self, page_content: str, metadata: dict):
@@ -41,24 +41,21 @@ class ProcessController(BaseController):
             os.makedirs(output_dir, exist_ok=True)
 
             try:
-                # Run local advanced merged pipeline
-                run_merged_pipeline(
+                # Run unified GPU-accelerated pipeline (Docling + SmolVLM)
+                result = run_unified_pipeline(
                     source=file_path,
                     output_dir=Path(output_dir),
-                    vision_model=self.app_settings.GENERATION_MODEL_ID or "minicpm-v",
-                    text_model="phi3:mini",
+                    fast_tables=True,
                 )
 
-                # The output markdown is saved under the same file stem name
-                stem = Path(file_id).stem
-                md_path = os.path.join(output_dir, f"{stem}.md")
-                
-                if os.path.exists(md_path):
-                    with open(md_path, "r", encoding="utf-8") as f:
-                        return f.read()
-                return None
+                if result is None:
+                    return None
+
+                # Directly use the returned markdown (no disk I/O needed)
+                markdown, json_data, report = result
+                return markdown if markdown else None
             except Exception as e:
-                print(f"Error during merged pipeline processing: {e}")
+                print(f"Error during unified pipeline processing: {e}")
                 return None
         
         return None

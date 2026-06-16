@@ -109,7 +109,8 @@ def run_agent_chat(
         tools=tools,
         llm=llm,
         verbose=True,
-        allow_delegation=False
+        allow_delegation=False,
+        max_iter=4
     )
     
     # Format chat history
@@ -143,6 +144,9 @@ CRITICAL QUIZ INSTRUCTIONS: If the student requests a quiz, exam, or test:
 - Pass the extracted number as the 'num_questions' parameter to the quiz generation tool.
 - If the student does NOT specify a number, default to 5.
 - NEVER override or reduce the requested number of questions. If they ask for 10, you MUST pass num_questions=10.
+
+CRITICAL SEARCH INSTRUCTIONS:
+- If the RAG tools return "No relevant materials found" or state that the topic is not covered in the documents, do NOT retry searching with the same or similar queries. Stop searching immediately and answer the student honestly that their course materials do not contain this information.
 
 Always respond in a friendly, supportive tone matching the student's language (Arabic or English).
 """,
@@ -181,7 +185,8 @@ def run_agent_quiz(
         tools=tools,
         llm=llm,
         verbose=True,
-        allow_delegation=False
+        allow_delegation=False,
+        max_iter=4
     )
     
     quiz_task = Task(
@@ -189,6 +194,10 @@ def run_agent_quiz(
 Search the course materials for content related to the topic: "{topic}".
 Based on the retrieved content, generate EXACTLY {num_questions} multiple-choice questions. It is CRITICAL that the output contains exactly {num_questions} questions in the list, no more and no less.
 Each question must have 4 options (A, B, C, D), a single correct answer, and an explanation.
+
+CRITICAL SEARCH INSTRUCTIONS:
+- If no course materials are found, or the materials are not relevant to the topic, do NOT retry the search tool. Immediately return the failure status or empty questions in the schema rather than looping.
+
 You MUST output a valid JSON object matching the schema:
 - topic: The topic of the quiz
 - questions: A list of questions, where each question has:

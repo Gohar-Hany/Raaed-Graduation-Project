@@ -1,5 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Bot, User, Trash2, Copy, Check } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+
+const preprocessMarkdown = (content) => {
+  if (!content) return '';
+  // Replace \[ ... \] with $$ ... $$
+  let processed = content.replace(/\\\[([\s\S]*?)\\\]/g, (_, equation) => `$$\n${equation}\n$$`);
+  // Replace \( ... \) with $ ... $
+  processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (_, equation) => `$${equation}$`);
+  return processed;
+};
 
 export default function ChatInterface({
   onSendMessage,
@@ -102,7 +115,39 @@ export default function ChatInterface({
                   : 'bg-surface-100 dark:bg-surface-800 text-surface-900 dark:text-surface-100 rounded-2xl rounded-tl-md px-4 py-3'
               }`}
             >
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              <div className="text-sm leading-relaxed markdown-content">
+                {msg.role === 'user' ? (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                ) : (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={{
+                      p: ({ node, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                      ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-2" {...props} />,
+                      ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-2" {...props} />,
+                      li: ({ node, ...props }) => <li className="mb-1" {...props} />,
+                      a: ({ node, ...props }) => <a className="text-primary-600 dark:text-primary-400 hover:underline" {...props} />,
+                      code: ({ node, className, children, ...props }) => {
+                        const match = /language-(\w+)/.exec(className || '');
+                        return match ? (
+                          <pre className="bg-surface-200 dark:bg-surface-700 p-3 rounded-lg overflow-x-auto my-2">
+                            <code className={className} {...props}>
+                              {children}
+                            </code>
+                          </pre>
+                        ) : (
+                          <code className="bg-surface-200 dark:bg-surface-700 px-1 py-0.5 rounded text-xs" {...props}>
+                            {children}
+                          </code>
+                        );
+                      }
+                    }}
+                  >
+                    {preprocessMarkdown(msg.content)}
+                  </ReactMarkdown>
+                )}
+              </div>
               {msg.action && (
                 <button
                   onClick={msg.action.onClick}

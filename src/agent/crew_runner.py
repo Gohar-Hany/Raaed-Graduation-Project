@@ -39,15 +39,21 @@ class QuizModel(BaseModel):
 
 def get_llm():
     settings = get_settings()
-    api_key = settings.OPENAI_API_KEY
+    api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY
     api_url = settings.OPENAI_API_URL or "https://openrouter.ai/api/v1"
     model_name = settings.GENERATION_MODEL_ID or "openai/gpt-4o-mini"
     
     if not api_key:
-        raise ValueError("OPENAI_API_KEY is not configured in settings")
+        raise ValueError("Neither OPENROUTER_API_KEY nor OPENAI_API_KEY is configured in settings")
         
     if not model_name.startswith("openrouter/"):
         model_name = f"openrouter/{model_name}"
+        
+    # Inject necessary environment variables for LiteLLM/CrewAI
+    os.environ["OPENROUTER_API_KEY"] = api_key
+    os.environ["OPENAI_API_KEY"] = api_key
+    os.environ["OPENAI_API_BASE"] = api_url
+    os.environ["OPENAI_BASE_URL"] = api_url
         
     return OpenRouterLLM(
         model=model_name,
